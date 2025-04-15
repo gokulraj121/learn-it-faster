@@ -1,0 +1,11 @@
+
+project_id = "axamyiyfsajjpfghwckr"
+
+[functions.process-flashcards]
+verify_jwt = true
+
+[functions.convert-file]
+verify_jwt = false
+
+[functions.generate-infographic]
+verify_jwt = true
