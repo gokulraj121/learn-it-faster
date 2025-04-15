@@ -15,27 +15,50 @@ serve(async (req) => {
   try {
     // Extract the request body
     const requestData = await req.json();
-    const { fileContent, fileName } = requestData;
+    const { fileContent, fileName, sourceType = "file" } = requestData;
     
     if (!fileContent) {
       return new Response(
-        JSON.stringify({ error: "File content is required" }),
+        JSON.stringify({ error: "Content is required" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
     
-    console.log(`Generating infographic for file: ${fileName}`);
+    console.log(`Generating infographic for ${sourceType}: ${fileName}`);
     
-    // Mock AI processing - in a real implementation, you would use an AI service
-    // This simulates extracting data for an infographic from the document
-    const infographicData = generateMockInfographicData(fileName);
+    // Process content based on source type
+    let processedContent = fileContent;
+    let contentTitle = fileName;
+    
+    // If URL, extract domain as category
+    if (sourceType === "url") {
+      try {
+        const url = new URL(fileContent);
+        const domain = url.hostname;
+        contentTitle = domain.replace("www.", "");
+        console.log(`Processing URL from domain: ${domain}`);
+        
+        // In a real implementation, we would fetch and extract content from the URL
+        // For this demo, we'll simulate URL processing
+        processedContent = `Content extracted from ${domain}`;
+      } catch (error) {
+        console.error("Invalid URL:", error);
+      }
+    }
+    
+    // Mock AI processing - in a real implementation, you would use NLP and image recognition
+    const contentType = determineContentType(fileName, sourceType);
+    const infographicData = generateMockInfographicData(contentType, processedContent);
+    
+    // Generate a title based on the content type and source
+    const title = generateTitle(fileName, sourceType, contentType);
     
     // Return the processed infographic data
     return new Response(
       JSON.stringify({ 
         success: true, 
         infographicData,
-        title: fileName?.split('.')[0] || "Document Summary"
+        title
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
@@ -49,100 +72,124 @@ serve(async (req) => {
   }
 });
 
-// Mock function to generate sample infographic data for demonstration
-function generateMockInfographicData(fileName: string) {
-  const topics = [
-    "Climate Change Report", 
-    "Business Analysis", 
-    "Healthcare Study",
-    "Education Statistics",
-    "Technology Trends"
-  ];
+// Determine content type based on filename and source type
+function determineContentType(fileName: string, sourceType: string): string {
+  if (sourceType === "url") {
+    return "website";
+  }
   
-  const selectedTopic = topics[Math.floor(Math.random() * topics.length)];
+  if (sourceType === "text") {
+    return "blog";
+  }
   
-  const infographicDataSets = {
-    "Climate Change Report": {
-      title: "Climate Change Impact Report",
-      summary: "This report analyzes the potential impacts of climate change on global ecosystems over the next century, with a focus on vulnerable regions.",
+  // For files, check extension
+  if (fileName.toLowerCase().endsWith('.pdf')) {
+    return "research";
+  }
+  
+  return "general";
+}
+
+// Generate a title based on the content
+function generateTitle(fileName: string, sourceType: string, contentType: string): string {
+  if (sourceType === "file") {
+    return fileName.split('.')[0] || "Document Summary";
+  }
+  
+  if (sourceType === "url") {
+    try {
+      const url = new URL(fileName);
+      return `${url.hostname.replace("www.", "")} Summary`;
+    } catch {
+      return "Website Summary";
+    }
+  }
+  
+  // For blog text, generate a title based on content type
+  const titles = {
+    "research": "Research Summary",
+    "blog": "Blog Post Summary",
+    "website": "Website Summary",
+    "general": "Content Summary"
+  };
+  
+  return titles[contentType] || "Content Summary";
+}
+
+// Mock function to generate sample infographic data based on content type
+function generateMockInfographicData(contentType: string, content: string) {
+  const infographicTypes = {
+    "research": {
+      title: "Research Findings Summary",
+      summary: "This research examines key trends and findings in the field, highlighting important discoveries and their potential implications for future study.",
       keyPoints: [
-        "Global temperatures are projected to rise by 1.5-4.5°C by 2100",
-        "Sea levels may rise by up to 1 meter, affecting coastal communities",
-        "Extreme weather events will become more frequent and intense",
-        "Biodiversity loss will accelerate, with up to 30% of species at risk"
+        "Major finding 1: Significant correlation between variables X and Y",
+        "Methodology revealed innovative approaches to data collection",
+        "Results contradict previous studies in three key areas",
+        "Implications suggest a paradigm shift in current theoretical models"
       ],
       stats: [
-        { label: "Temperature Increase (°C)", value: 2.7 },
-        { label: "Sea Level Rise (cm)", value: 50 },
-        { label: "Species at Risk (%)", value: 30 },
-        { label: "Economic Impact ($ Trillion)", value: 5.4 }
+        { label: "Study Duration (months)", value: 18 },
+        { label: "Sample Size", value: 1250 },
+        { label: "Success Rate (%)", value: 78 },
+        { label: "Confidence Level (%)", value: 95 }
       ]
     },
-    "Business Analysis": {
-      title: "Annual Business Performance Summary",
-      summary: "Overview of key business metrics and performance indicators for the fiscal year, highlighting growth areas and challenges.",
+    "blog": {
+      title: "Blog Post Analysis",
+      summary: "This blog explores important concepts and provides insights on current trends and best practices in the industry.",
       keyPoints: [
-        "Revenue increased by 15% compared to previous year",
-        "Customer acquisition costs decreased by 7%",
-        "New market expansion achieved in 3 countries",
-        "Product line diversification led to 22% more SKUs"
+        "The main argument centers on improving productivity through strategic approaches",
+        "Case studies demonstrate successful implementation in various contexts",
+        "Author provides actionable steps for readers to implement immediately",
+        "Contrasting perspectives are analyzed to provide a balanced view"
       ],
       stats: [
-        { label: "Revenue Growth (%)", value: 15 },
-        { label: "Profit Margin (%)", value: 23 },
-        { label: "Customer Retention (%)", value: 84 },
-        { label: "Market Share (%)", value: 12 }
+        { label: "Reading Time (min)", value: 8 },
+        { label: "Key Insights", value: 5 },
+        { label: "Actionable Tips", value: 7 },
+        { label: "Citation Count", value: 12 }
       ]
     },
-    "Healthcare Study": {
-      title: "Healthcare Accessibility Report",
-      summary: "Analysis of healthcare accessibility across different demographics and regions, with recommendations for policy improvements.",
+    "website": {
+      title: "Website Content Overview",
+      summary: "This website provides comprehensive information on products, services, and resources for users seeking solutions in this domain.",
       keyPoints: [
-        "Rural areas have 35% less access to specialized care",
-        "Telehealth adoption increased by 280% over the past year",
-        "Preventive care initiatives reduced hospitalizations by 12%",
-        "Medical costs remain the leading cause of personal bankruptcy"
+        "The platform offers various tools for productivity enhancement",
+        "User testimonials highlight significant improvements in workflow",
+        "Pricing structure provides options for different user segments",
+        "Integration capabilities with other popular platforms"
       ],
       stats: [
-        { label: "Telehealth Adoption (%)", value: 280 },
-        { label: "Uninsured Population (%)", value: 9.2 },
-        { label: "Prevention Savings ($B)", value: 25 },
-        { label: "Life Expectancy (Years)", value: 78.6 }
+        { label: "Features", value: 15 },
+        { label: "User Rating", value: 4.7 },
+        { label: "Satisfaction (%)", value: 92 },
+        { label: "ROI Multiple", value: 3.5 }
       ]
     },
-    "Education Statistics": {
-      title: "National Education Performance Data",
-      summary: "Comprehensive analysis of educational outcomes and trends across different age groups, regions, and socioeconomic backgrounds.",
+    "general": {
+      title: "Content Summary",
+      summary: "This content provides valuable information on the subject matter, covering important aspects and considerations for the audience.",
       keyPoints: [
-        "High school graduation rates increased to 86% nationally",
-        "STEM education enrollment grew by 14% in the past five years",
-        "Student debt average reached $37,500 per graduate",
-        "Online learning platforms saw 340% growth in users"
+        "Main theme focuses on optimizing processes for better outcomes",
+        "Multiple perspectives are presented to provide comprehensive coverage",
+        "Practical examples illustrate theoretical concepts effectively",
+        "Recommendations are provided based on evidence and best practices"
       ],
       stats: [
-        { label: "Graduation Rate (%)", value: 86 },
-        { label: "STEM Growth (%)", value: 14 },
-        { label: "Avg. Student Debt ($K)", value: 37.5 },
-        { label: "Teacher-Student Ratio", value: 1.24 }
-      ]
-    },
-    "Technology Trends": {
-      title: "Emerging Technology Landscape",
-      summary: "Analysis of current technology trends and adoption rates across industries, with forecasts for the upcoming year.",
-      keyPoints: [
-        "AI implementation increased by 63% across enterprise businesses",
-        "Quantum computing research funding doubled to $2.5 billion",
-        "Cybersecurity incidents rose by 32% compared to previous year",
-        "Renewable energy tech saw cost reductions of 21% on average"
-      ],
-      stats: [
-        { label: "AI Adoption Growth (%)", value: 63 },
-        { label: "5G Coverage (%)", value: 42 },
-        { label: "Cybersecurity Breaches (%)", value: 32 },
-        { label: "Cloud Migration (%)", value: 78 }
+        { label: "Key Concepts", value: 6 },
+        { label: "Implementation Ideas", value: 8 },
+        { label: "Learning Value", value: 4.2 },
+        { label: "Relevance Score", value: 8.5 }
       ]
     }
   };
   
-  return infographicDataSets[selectedTopic];
+  // Customize the data slightly based on the content provided
+  const baseData = infographicTypes[contentType] || infographicTypes.general;
+  
+  // In a real implementation, we would use NLP to analyze the content
+  // and generate custom infographic data
+  
+  return baseData;
 }
