@@ -4,6 +4,9 @@ import { ChevronLeft, Download, FileIcon, RotateCw, ArrowDownUp } from "lucide-r
 import { FileUpload } from "@/components/FileUpload";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Navbar } from "@/components/Navbar";
 import { 
   Select, 
   SelectContent, 
@@ -33,35 +36,90 @@ const conversionOptions: ConversionOption[] = [
 export default function FileConverter() {
   const [conversionType, setConversionType] = useState<ConversionType>("pdf-to-word");
   const [file, setFile] = useState<File | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [converted, setConverted] = useState(false);
+  const [outputFileName, setOutputFileName] = useState<string | null>(null);
+  const { toast } = useToast();
   
   const currentOption = conversionOptions.find(option => option.id === conversionType);
   
-  const handleFileUpload = (uploadedFile: File) => {
+  const handleFileUpload = async (uploadedFile: File) => {
     setFile(uploadedFile);
     setConverted(false);
+    setOutputFileName(null);
+    
+    // Read file content (for demonstration purposes)
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setFileContent(content);
+    };
+    reader.readAsText(uploadedFile);
   };
   
-  const handleConvert = () => {
-    if (!file) return;
+  const handleConvert = async () => {
+    if (!file || !fileContent) return;
     
     setLoading(true);
     
-    // Simulate conversion process
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // Call Supabase Edge Function to convert the file
+      const { data, error } = await supabase.functions.invoke('convert-file', {
+        body: {
+          fileContent,
+          fileName: file.name,
+          conversionType
+        }
+      });
+      
+      if (error) throw error;
+      
       setConverted(true);
-    }, 2000);
+      setOutputFileName(data.fileName);
+      
+      toast({
+        title: "File converted",
+        description: data.message,
+      });
+      
+    } catch (error: any) {
+      console.error("Error converting file:", error);
+      toast({
+        title: "Error converting file",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   
   const downloadResult = () => {
+    if (!converted || !outputFileName) return;
+    
     // In a real app, this would download the converted file
-    alert("In a real app, this would download your converted file.");
+    // For demonstration, we'll create a dummy file
+    const blob = new Blob([fileContent || ""], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = outputFileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "File downloaded",
+      description: `${outputFileName} has been downloaded`,
+    });
   };
   
   return (
-    <div className="min-h-screen p-6 md:p-10 max-w-6xl mx-auto">
+    <div className="min-h-screen p-6 pt-24 md:p-10 md:pt-28 max-w-6xl mx-auto">
+      <Navbar />
+      
       <div className="mb-10">
         <Link to="/" className="flex items-center text-muted-foreground hover:text-primary transition-colors gap-1 mb-6">
           <ChevronLeft className="h-4 w-4" />
@@ -80,6 +138,7 @@ export default function FileConverter() {
               setConversionType(value as ConversionType);
               setFile(null);
               setConverted(false);
+              setOutputFileName(null);
             }}
           >
             <SelectTrigger className="w-full">

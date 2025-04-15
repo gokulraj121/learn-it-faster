@@ -1,52 +1,97 @@
 
 import { useState } from "react";
-import { ChevronLeft, Download, FileText, Copy, RotateCw } from "lucide-react";
+import { ChevronLeft, Download, FileText, Copy, RotateCw, AlertCircle } from "lucide-react";
 import { FileUpload } from "@/components/FileUpload";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/components/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Navbar } from "@/components/Navbar";
 
 interface Flashcard {
   question: string;
   answer: string;
 }
 
-const mockFlashcards: Flashcard[] = [
-  {
-    question: "What is the law of conservation of energy?",
-    answer: "Energy cannot be created or destroyed, only transformed from one form to another."
-  },
-  {
-    question: "What is the capital of France?",
-    answer: "Paris is the capital city of France."
-  },
-  {
-    question: "What is photosynthesis?",
-    answer: "The process by which green plants and some other organisms use sunlight to synthesize nutrients from carbon dioxide and water."
-  }
-];
-
 export default function FlashcardGenerator() {
   const [file, setFile] = useState<File | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [title, setTitle] = useState("");
   const [activeCard, setActiveCard] = useState<number | null>(null);
   const [flipped, setFlipped] = useState(false);
+  const { toast } = useToast();
+  const { user } = useAuth();
   
-  const handleFileUpload = (uploadedFile: File) => {
+  // Redirect to auth page if not logged in
+  if (!user) {
+    toast({
+      title: "Authentication required",
+      description: "Please sign in to use this feature",
+      variant: "destructive",
+    });
+    return <Navigate to="/auth" />;
+  }
+  
+  const handleFileUpload = async (uploadedFile: File) => {
     setFile(uploadedFile);
     setFlashcards([]);
     setActiveCard(null);
+    
+    // Read file content
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setFileContent(content);
+    };
+    reader.readAsText(uploadedFile);
   };
   
-  const generateFlashcards = () => {
+  const generateFlashcards = async () => {
+    if (!file || !fileContent) return;
+    
     setLoading(true);
     
-    // Simulate API call with timeout
-    setTimeout(() => {
-      setFlashcards(mockFlashcards);
-      setLoading(false);
+    try {
+      // Call Supabase Edge Function to process the file
+      const { data, error } = await supabase.functions.invoke('process-flashcards', {
+        body: {
+          fileContent,
+          fileName: file.name
+        }
+      });
+      
+      if (error) throw error;
+      
+      setFlashcards(data.flashcards);
+      setTitle(data.title);
       setActiveCard(0);
-    }, 2000);
+      
+      // Save to Supabase
+      await supabase.from('flashcards').insert({
+        user_id: user.id,
+        title: data.title,
+        content: data.flashcards,
+        original_filename: file.name
+      });
+      
+      toast({
+        title: "Flashcards generated",
+        description: `Created ${data.flashcards.length} flashcards from your document`,
+      });
+      
+    } catch (error: any) {
+      console.error("Error generating flashcards:", error);
+      toast({
+        title: "Error generating flashcards",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   
   const handleCardClick = (index: number) => {
@@ -65,15 +110,22 @@ export default function FlashcardGenerator() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'flashcards.txt';
+    a.download = `${title || 'flashcards'}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Flashcards downloaded",
+      description: "Your flashcards have been saved as a text file",
+    });
   };
   
   return (
-    <div className="min-h-screen p-6 md:p-10 max-w-6xl mx-auto">
+    <div className="min-h-screen p-6 pt-24 md:p-10 md:pt-28 max-w-6xl mx-auto">
+      <Navbar />
+      
       <div className="mb-10">
         <Link to="/" className="flex items-center text-muted-foreground hover:text-primary transition-colors gap-1 mb-6">
           <ChevronLeft className="h-4 w-4" />
@@ -88,7 +140,7 @@ export default function FlashcardGenerator() {
           <div className="glass-card p-6">
             <h2 className="text-xl font-semibold mb-4">Upload Your PDF</h2>
             <FileUpload 
-              acceptedTypes=".pdf" 
+              acceptedTypes=".pdf,.txt" 
               onFileUpload={handleFileUpload} 
               label="Upload PDF Document"
             />
@@ -123,7 +175,7 @@ export default function FlashcardGenerator() {
                     <Download className="mr-2 h-4 w-4" />
                     TXT
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => {}}>
+                  <Button variant="outline" size="sm" onClick={downloadAsTxt}>
                     <Download className="mr-2 h-4 w-4" />
                     PDF
                   </Button>

@@ -3,8 +3,12 @@ import { useState } from "react";
 import { ChevronLeft, Download, FileText, RotateCw, PieChart, BarChart3, LineChart } from "lucide-react";
 import { FileUpload } from "@/components/FileUpload";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/components/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Navbar } from "@/components/Navbar";
 
 interface InfographicData {
   title: string;
@@ -16,52 +20,118 @@ interface InfographicData {
   }[];
 }
 
-// Mock data for demonstration
-const mockInfographicData: InfographicData = {
-  title: "Climate Change Impact Report",
-  summary: "This report analyzes the potential impacts of climate change on global ecosystems over the next century, with a focus on vulnerable regions.",
-  keyPoints: [
-    "Global temperatures are projected to rise by 1.5-4.5°C by 2100",
-    "Sea levels may rise by up to 1 meter, affecting coastal communities",
-    "Extreme weather events will become more frequent and intense",
-    "Biodiversity loss will accelerate, with up to 30% of species at risk"
-  ],
-  stats: [
-    { label: "Temperature Increase (°C)", value: 2.7 },
-    { label: "Sea Level Rise (cm)", value: 50 },
-    { label: "Species at Risk (%)", value: 30 },
-    { label: "Economic Impact ($ Trillion)", value: 5.4 }
-  ]
-};
-
 export default function PdfToInfographic() {
   const [file, setFile] = useState<File | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [infographicData, setInfographicData] = useState<InfographicData | null>(null);
   const [activeTab, setActiveTab] = useState("modern");
+  const { toast } = useToast();
+  const { user } = useAuth();
   
-  const handleFileUpload = (uploadedFile: File) => {
+  // Redirect to auth page if not logged in
+  if (!user) {
+    toast({
+      title: "Authentication required",
+      description: "Please sign in to use this feature",
+      variant: "destructive",
+    });
+    return <Navigate to="/auth" />;
+  }
+  
+  const handleFileUpload = async (uploadedFile: File) => {
     setFile(uploadedFile);
     setInfographicData(null);
+    
+    // Read file content
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setFileContent(content);
+    };
+    reader.readAsText(uploadedFile);
   };
   
-  const generateInfographic = () => {
+  const generateInfographic = async () => {
+    if (!file || !fileContent) return;
+    
     setLoading(true);
     
-    // Simulate API call with timeout
-    setTimeout(() => {
-      setInfographicData(mockInfographicData);
+    try {
+      // Call Supabase Edge Function to process the file
+      const { data, error } = await supabase.functions.invoke('generate-infographic', {
+        body: {
+          fileContent,
+          fileName: file.name
+        }
+      });
+      
+      if (error) throw error;
+      
+      setInfographicData(data.infographicData);
+      
+      // Save to Supabase
+      await supabase.from('infographics').insert({
+        user_id: user.id,
+        title: data.title,
+        content: data.infographicData,
+        original_filename: file.name
+      });
+      
+      toast({
+        title: "Infographic generated",
+        description: "Your infographic has been created successfully",
+      });
+      
+    } catch (error: any) {
+      console.error("Error generating infographic:", error);
+      toast({
+        title: "Error generating infographic",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
-    }, 2000);
+    }
   };
   
   const downloadInfographic = () => {
-    // In a real app, this would generate and download the infographic
-    alert("In a real app, this would download your infographic as an image.");
+    if (!infographicData) return;
+    
+    // In a real app, this would generate and download the infographic as an image
+    // For demonstration, we'll create a text representation
+    const content = `
+      # ${infographicData.title}
+      
+      ${infographicData.summary}
+      
+      ## Key Points
+      ${infographicData.keyPoints.map((point, i) => `${i+1}. ${point}`).join('\n')}
+      
+      ## Statistics
+      ${infographicData.stats.map(stat => `- ${stat.label}: ${stat.value}`).join('\n')}
+    `;
+    
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${infographicData.title.replace(/\s+/g, '-').toLowerCase()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Infographic downloaded",
+      description: "Your infographic has been saved as a text file",
+    });
   };
   
   return (
-    <div className="min-h-screen p-6 md:p-10 max-w-6xl mx-auto">
+    <div className="min-h-screen p-6 pt-24 md:p-10 md:pt-28 max-w-6xl mx-auto">
+      <Navbar />
+      
       <div className="mb-10">
         <Link to="/" className="flex items-center text-muted-foreground hover:text-primary transition-colors gap-1 mb-6">
           <ChevronLeft className="h-4 w-4" />
@@ -76,7 +146,7 @@ export default function PdfToInfographic() {
           <div className="glass-card p-6">
             <h2 className="text-xl font-semibold mb-4">Upload Your PDF</h2>
             <FileUpload 
-              acceptedTypes=".pdf" 
+              acceptedTypes=".pdf,.txt" 
               onFileUpload={handleFileUpload} 
               label="Upload PDF Document"
             />
@@ -112,13 +182,13 @@ export default function PdfToInfographic() {
                 </Button>
               </div>
               <div className="flex gap-2 mb-4">
-                <Button variant="outline" size="sm" onClick={() => {}}>
+                <Button variant="outline" size="sm" onClick={downloadInfographic}>
                   PNG
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => {}}>
+                <Button variant="outline" size="sm" onClick={downloadInfographic}>
                   JPG
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => {}}>
+                <Button variant="outline" size="sm" onClick={downloadInfographic}>
                   PDF
                 </Button>
               </div>
