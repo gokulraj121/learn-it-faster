@@ -12,6 +12,7 @@ import FileConverter from "./pages/FileConverter";
 import PdfToInfographic from "./pages/PdfToInfographic";
 import NotFound from "./pages/NotFound";
 import Landing from "./pages/Landing";
+import Plans from "./pages/Plans";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/landing" element={<Landing />} />
+            <Route path="/plans" element={<Plans />} />
             <Route path="/flashcard-generator" element={<FlashcardGenerator />} />
             <Route path="/file-converter" element={<FileConverter />} />
             <Route path="/pdf-to-infographic" element={<PdfToInfographic />} />

@@ -1,6 +1,6 @@
 
 import { Link } from "react-router-dom";
-import { Brain, FileSymlink, PieChart } from "lucide-react";
+import { Brain, FileSymlink, PieChart, BadgeDollarSign } from "lucide-react";
 import { FeatureCard } from "@/components/FeatureCard";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -37,9 +37,13 @@ const Index = () => {
           </div>
         )}
         
-        <div className="mt-4">
+        <div className="mt-4 flex justify-center gap-4">
           <Link to="/landing" className="text-sm text-primary hover:underline">
             Learn more about Toolkit
+          </Link>
+          <Link to="/plans" className="text-sm text-primary hover:underline flex items-center gap-1">
+            <BadgeDollarSign className="h-4 w-4" />
+            View Pricing Plans
           </Link>
         </div>
       </div>
@@ -52,6 +56,7 @@ const Index = () => {
           to="/flashcard-generator"
           requiresAuth={true}
           isLoggedIn={!!user}
+          isPremium={true}
         />
         
         <FeatureCard
@@ -70,6 +75,7 @@ const Index = () => {
           to="/pdf-to-infographic"
           requiresAuth={true}
           isLoggedIn={!!user}
+          isPremium={true}
         />
       </div>
       

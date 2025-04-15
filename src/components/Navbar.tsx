@@ -6,9 +6,10 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuTrigger 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { User, LogOut } from "lucide-react";
+import { User, LogOut, BadgeDollarSign } from "lucide-react";
 
 export function Navbar() {
   const { user, signOut } = useAuth();
@@ -32,6 +33,11 @@ export function Navbar() {
           <Link to="/pdf-to-infographic" className="text-sm text-muted-foreground hover:text-white transition-colors">
             PDF to Infographic
           </Link>
+          
+          <Link to="/plans" className="text-sm text-muted-foreground hover:text-white transition-colors flex items-center gap-1">
+            <BadgeDollarSign className="h-4 w-4" />
+            Pricing
+          </Link>
         </nav>
         
         <div className="flex items-center gap-2">
@@ -44,6 +50,13 @@ export function Navbar() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link to="/plans" className="w-full flex items-center">
+                    <BadgeDollarSign className="mr-2 h-4 w-4" />
+                    <span>Subscription Plans</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => signOut()}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Log out</span>
