@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Brain, FileSymlink, PieChart, BadgeDollarSign } from "lucide-react";
 import { FeatureCard } from "@/components/FeatureCard";
 import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/components/AuthContext";
 
@@ -79,9 +80,7 @@ const Index = () => {
         />
       </div>
       
-      <footer className="mt-auto pt-10 text-muted-foreground text-sm text-center relative z-10">
-        <p>Toolkit © {new Date().getFullYear()}</p>
-      </footer>
+      <Footer />
     </div>
   );
 };

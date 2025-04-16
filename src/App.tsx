@@ -13,6 +13,8 @@ import PdfToInfographic from "./pages/PdfToInfographic";
 import NotFound from "./pages/NotFound";
 import Landing from "./pages/Landing";
 import Plans from "./pages/Plans";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentCanceled from "./pages/PaymentCanceled";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +33,8 @@ const App = () => (
             <Route path="/flashcard-generator" element={<FlashcardGenerator />} />
             <Route path="/file-converter" element={<FileConverter />} />
             <Route path="/pdf-to-infographic" element={<PdfToInfographic />} />
+            <Route path="/payment-success" element={<PaymentSuccess />} />
+            <Route path="/payment-canceled" element={<PaymentCanceled />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

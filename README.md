@@ -1,73 +1,93 @@
-# Welcome to your Lovable project
 
-## Project info
+# Toolkit Web Application
 
-**URL**: https://lovable.dev/projects/e0a75815-be17-43e5-bd6f-a35cb37e687c
+A web application that provides AI-powered tools including file conversion, flashcard generation, and PDF to infographic conversion.
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- File Converter: Convert between PDF, Word, images and text formats
+- Flashcard Generator: Transform PDF notes into interactive study flashcards
+- PDF to Infographic: Turn PDFs into visual infographics
+- Subscription Plans: Lite and Pro plans with different features
+- Stripe Payment Integration: Secure payment processing
 
-**Use Lovable**
+## Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/e0a75815-be17-43e5-bd6f-a35cb37e687c) and start prompting.
+- Frontend: React, TypeScript, Tailwind CSS, Shadcn UI
+- Backend: Python (Flask)
+- Authentication: Supabase Auth
+- Payments: Stripe
+- AI: Llama 3 for text processing
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
+### Frontend
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+1. Install dependencies:
+```
+npm install
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+2. Start the development server:
+```
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Backend
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. Navigate to the backend directory:
+```
+cd backend
+```
 
-**Use GitHub Codespaces**
+2. Create a virtual environment:
+```
+python -m venv venv
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+3. Activate the virtual environment:
+```
+# On Windows
+venv\Scripts\activate
 
-## What technologies are used for this project?
+# On macOS/Linux
+source venv/bin/activate
+```
 
-This project is built with:
+4. Install dependencies:
+```
+pip install -r requirements.txt
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+5. Create a `.env` file with your Stripe API keys:
+```
+STRIPE_SECRET_KEY=sk_test_your_test_key
+STRIPE_LITE_PRICE_ID=price_your_lite_price_id
+STRIPE_PRO_PRICE_ID=price_your_pro_price_id
+```
 
-## How can I deploy this project?
+6. Run the Flask server:
+```
+flask run
+```
 
-Simply open [Lovable](https://lovable.dev/projects/e0a75815-be17-43e5-bd6f-a35cb37e687c) and click on Share -> Publish.
+## Subscription Management
 
-## Can I connect a custom domain to my Lovable project?
+The application offers two subscription tiers:
 
-Yes, you can!
+1. **Lite Plan ($10/month)**
+   - 50 AI Credits per month
+   - Support for 100+ languages
+   - Custom watermark option
+   - Standard email support
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+2. **Pro Plan ($20/month)**
+   - 150 AI Credits per month
+   - Support for 100+ languages
+   - Custom watermark option
+   - Up to 5 users per account
+   - Priority email support
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Google Ads Integration
+
+The application includes a dedicated section in the footer for displaying Google Ads.

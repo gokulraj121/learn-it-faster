@@ -1,8 +1,10 @@
 
+import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthContext";
 import { Navbar } from "@/components/Navbar";
-import { FeatureCard } from "@/components/FeatureCard";
+import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import { 
   CheckCircle, 
   Users, 
@@ -12,13 +14,120 @@ import {
   Languages, 
   BadgeCheck, 
   Mail, 
-  Rocket 
+  Rocket,
+  Loader2
 } from "lucide-react";
 
 export default function Plans() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<{
+    subscribed: boolean;
+    subscription_tier: string | null;
+    subscription_end: number | null;
+  } | null>(null);
   
   const isLoggedIn = !!user;
+
+  useEffect(() => {
+    if (user) {
+      checkSubscription();
+    }
+  }, [user]);
+
+  const checkSubscription = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/check-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          customerId: user.id // This should be the Stripe customer ID in a real app
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to check subscription');
+      
+      const data = await response.json();
+      setSubscription(data);
+    } catch (error) {
+      console.error('Error checking subscription:', error);
+      toast({
+        title: "Error",
+        description: "Failed to check subscription status",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const handleSubscribe = async (planId: string) => {
+    if (!isLoggedIn) {
+      window.location.href = "/auth";
+      return;
+    }
+    
+    setLoading(planId);
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/create-checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ planId })
+      });
+      
+      if (!response.ok) throw new Error('Failed to create checkout session');
+      
+      const { url } = await response.json();
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      toast({
+        title: "Error",
+        description: "Failed to start checkout process",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
+  
+  const handleManageSubscription = async () => {
+    if (!user) return;
+    
+    setLoading('manage');
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/customer-portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          customerId: user.id // This should be the Stripe customer ID in a real app
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to create customer portal session');
+      
+      const { url } = await response.json();
+      window.location.href = url;
+    } catch (error) {
+      console.error('Error creating customer portal session:', error);
+      toast({
+        title: "Error",
+        description: "Failed to open subscription management",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
   
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -30,11 +139,30 @@ export default function Plans() {
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             Get access to AI-powered tools to enhance your learning and productivity
           </p>
+          
+          {subscription?.subscribed && (
+            <div className="mt-4 inline-block px-4 py-2 bg-primary/10 rounded-full border border-primary/30">
+              <p className="text-sm">
+                You're currently on the <span className="font-bold text-primary">
+                  {subscription.subscription_tier === 'lite' ? 'Lite' : 'Pro'} Plan
+                </span>
+                {subscription.subscription_end && (
+                  <span> · Renews on {new Date(subscription.subscription_end * 1000).toLocaleDateString()}</span>
+                )}
+              </p>
+            </div>
+          )}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {/* Lite Plan */}
-          <div className="flex flex-col border border-white/10 rounded-xl overflow-hidden bg-black/20 backdrop-blur-sm relative">
+          <div className={`flex flex-col ${subscription?.subscription_tier === 'lite' ? 'border-primary border-2' : 'border border-white/10'} rounded-xl overflow-hidden bg-black/20 backdrop-blur-sm relative`}>
+            {subscription?.subscription_tier === 'lite' && (
+              <div className="absolute top-0 left-0 bg-primary text-primary-foreground text-xs px-3 py-1 rounded-br-lg">
+                CURRENT PLAN
+              </div>
+            )}
+            
             <div className="bg-primary/10 p-6 text-center">
               <h2 className="text-2xl font-bold">Lite Plan</h2>
               <div className="mt-4 mb-2">
@@ -64,17 +192,42 @@ export default function Plans() {
                 </li>
               </ul>
               
-              <Button size="lg" className="w-full">
-                {isLoggedIn ? "Upgrade to Lite" : "Get Started with Lite"}
-              </Button>
+              {subscription?.subscription_tier === 'lite' ? (
+                <Button 
+                  size="lg" 
+                  className="w-full" 
+                  variant="outline" 
+                  onClick={handleManageSubscription}
+                  disabled={loading === 'manage'}
+                >
+                  {loading === 'manage' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Manage Subscription
+                </Button>
+              ) : (
+                <Button 
+                  size="lg" 
+                  className="w-full" 
+                  onClick={() => handleSubscribe('lite')}
+                  disabled={!!loading}
+                >
+                  {loading === 'lite' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isLoggedIn ? "Subscribe to Lite" : "Get Started with Lite"}
+                </Button>
+              )}
             </div>
           </div>
           
           {/* Pro Plan */}
-          <div className="flex flex-col border border-primary/40 rounded-xl overflow-hidden bg-black/20 backdrop-blur-sm relative">
-            <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs px-3 py-1 rounded-bl-lg">
-              MOST POPULAR
-            </div>
+          <div className={`flex flex-col ${subscription?.subscription_tier === 'pro' ? 'border-primary border-2' : 'border border-primary/40'} rounded-xl overflow-hidden bg-black/20 backdrop-blur-sm relative`}>
+            {subscription?.subscription_tier === 'pro' ? (
+              <div className="absolute top-0 left-0 bg-primary text-primary-foreground text-xs px-3 py-1 rounded-br-lg">
+                CURRENT PLAN
+              </div>
+            ) : (
+              <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-xs px-3 py-1 rounded-bl-lg">
+                MOST POPULAR
+              </div>
+            )}
             
             <div className="bg-primary/20 p-6 text-center">
               <h2 className="text-2xl font-bold">Pro Plan</h2>
@@ -109,9 +262,28 @@ export default function Plans() {
                 </li>
               </ul>
               
-              <Button size="lg" className="w-full bg-primary/90 hover:bg-primary">
-                {isLoggedIn ? "Upgrade to Pro" : "Get Started with Pro"}
-              </Button>
+              {subscription?.subscription_tier === 'pro' ? (
+                <Button 
+                  size="lg" 
+                  className="w-full" 
+                  variant="outline" 
+                  onClick={handleManageSubscription}
+                  disabled={loading === 'manage'}
+                >
+                  {loading === 'manage' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Manage Subscription
+                </Button>
+              ) : (
+                <Button 
+                  size="lg" 
+                  className="w-full bg-primary/90 hover:bg-primary"
+                  onClick={() => handleSubscribe('pro')}
+                  disabled={!!loading}
+                >
+                  {loading === 'pro' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isLoggedIn ? "Subscribe to Pro" : "Get Started with Pro"}
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -146,6 +318,8 @@ export default function Plans() {
           </div>
         </div>
       </main>
+      
+      <Footer />
     </div>
   );
 }
