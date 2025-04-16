@@ -40,6 +40,8 @@ export default function FileConverter() {
   const [loading, setLoading] = useState(false);
   const [converted, setConverted] = useState(false);
   const [outputFileName, setOutputFileName] = useState<string | null>(null);
+  const [convertedContent, setConvertedContent] = useState<string | null>(null);
+  const [contentType, setContentType] = useState<string | null>(null);
   const { toast } = useToast();
   
   const currentOption = conversionOptions.find(option => option.id === conversionType);
@@ -48,14 +50,22 @@ export default function FileConverter() {
     setFile(uploadedFile);
     setConverted(false);
     setOutputFileName(null);
+    setConvertedContent(null);
+    setContentType(null);
     
-    // Read file content (for demonstration purposes)
+    // Read file content as base64
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setFileContent(content);
     };
-    reader.readAsText(uploadedFile);
+    
+    // Handle different file types appropriately
+    if (conversionType.includes("pdf") || conversionType.includes("image")) {
+      reader.readAsDataURL(uploadedFile); // Read as base64 for binary files
+    } else {
+      reader.readAsText(uploadedFile); // Read as text for text-based files
+    }
   };
   
   const handleConvert = async () => {
@@ -77,6 +87,8 @@ export default function FileConverter() {
       
       setConverted(true);
       setOutputFileName(data.fileName);
+      setConvertedContent(data.content);
+      setContentType(data.contentType || "application/octet-stream");
       
       toast({
         title: "File converted",
@@ -96,12 +108,39 @@ export default function FileConverter() {
   };
   
   const downloadResult = () => {
-    if (!converted || !outputFileName) return;
+    if (!converted || !outputFileName || !convertedContent) return;
     
-    // In a real app, this would download the converted file
-    // For demonstration, we'll create a dummy file
-    const blob = new Blob([fileContent || ""], { type: 'text/plain' });
+    // Create the appropriate content for the file based on the conversion type
+    let content: string | Uint8Array = convertedContent;
+    let mimeType = contentType || "application/octet-stream";
+    
+    // For text-based outputs, use the content directly
+    if (mimeType.startsWith("text/") || mimeType.includes("word") || mimeType.includes("document")) {
+      content = convertedContent;
+    } 
+    // For binary outputs (like images), try to handle the base64 data
+    else if (convertedContent.startsWith("data:")) {
+      // Handle data URLs
+      const base64Content = convertedContent.split(',')[1];
+      content = Uint8Array.from(atob(base64Content), c => c.charCodeAt(0));
+    } 
+    // For base64 encoded content without data URL prefix
+    else if (/^[A-Za-z0-9+/=]+$/.test(convertedContent.slice(0, 100))) {
+      try {
+        content = Uint8Array.from(atob(convertedContent), c => c.charCodeAt(0));
+      } catch (e) {
+        console.error("Failed to decode base64:", e);
+        // Fallback to text
+        content = convertedContent;
+        mimeType = "text/plain";
+      }
+    }
+    
+    // Create a blob with the content
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
+    
+    // Create download link
     const a = document.createElement('a');
     a.href = url;
     a.download = outputFileName;
@@ -139,6 +178,8 @@ export default function FileConverter() {
               setFile(null);
               setConverted(false);
               setOutputFileName(null);
+              setConvertedContent(null);
+              setContentType(null);
             }}
           >
             <SelectTrigger className="w-full">

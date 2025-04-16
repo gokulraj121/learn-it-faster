@@ -15,4 +15,3 @@ middleware.keys = ["public_key", "private_key"]
 
 [api]
 enabled_apis = ["rest", "realtime", "storage", "auth"]
-
