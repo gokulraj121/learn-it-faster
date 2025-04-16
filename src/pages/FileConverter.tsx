@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { ChevronLeft, Download, FileIcon, RotateCw, ArrowDownUp } from "lucide-react";
 import { FileUpload } from "@/components/FileUpload";
@@ -53,18 +52,16 @@ export default function FileConverter() {
     setConvertedContent(null);
     setContentType(null);
     
-    // Read file content as base64
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setFileContent(content);
     };
     
-    // Handle different file types appropriately
     if (conversionType.includes("pdf") || conversionType.includes("image")) {
-      reader.readAsDataURL(uploadedFile); // Read as base64 for binary files
+      reader.readAsDataURL(uploadedFile);
     } else {
-      reader.readAsText(uploadedFile); // Read as text for text-based files
+      reader.readAsText(uploadedFile);
     }
   };
   
@@ -74,7 +71,6 @@ export default function FileConverter() {
     setLoading(true);
     
     try {
-      // Call Supabase Edge Function to convert the file
       const { data, error } = await supabase.functions.invoke('convert-file', {
         body: {
           fileContent,
@@ -108,51 +104,79 @@ export default function FileConverter() {
   };
   
   const downloadResult = () => {
-    if (!converted || !outputFileName || !convertedContent) return;
-    
-    // Create the appropriate content for the file based on the conversion type
-    let content: string | Uint8Array = convertedContent;
-    let mimeType = contentType || "application/octet-stream";
-    
-    // For text-based outputs, use the content directly
-    if (mimeType.startsWith("text/") || mimeType.includes("word") || mimeType.includes("document")) {
-      content = convertedContent;
-    } 
-    // For binary outputs (like images), try to handle the base64 data
-    else if (convertedContent.startsWith("data:")) {
-      // Handle data URLs
-      const base64Content = convertedContent.split(',')[1];
-      content = Uint8Array.from(atob(base64Content), c => c.charCodeAt(0));
-    } 
-    // For base64 encoded content without data URL prefix
-    else if (/^[A-Za-z0-9+/=]+$/.test(convertedContent.slice(0, 100))) {
-      try {
-        content = Uint8Array.from(atob(convertedContent), c => c.charCodeAt(0));
-      } catch (e) {
-        console.error("Failed to decode base64:", e);
-        // Fallback to text
-        content = convertedContent;
-        mimeType = "text/plain";
-      }
+    if (!converted || !outputFileName || !convertedContent) {
+      console.error("Cannot download: missing data", { converted, outputFileName, contentType });
+      return;
     }
     
-    // Create a blob with the content
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
+    console.log("Downloading file:", outputFileName, "Content type:", contentType);
     
-    // Create download link
+    try {
+      let mimeType = contentType || "application/octet-stream";
+      
+      if (mimeType.startsWith("text/") || 
+          mimeType.includes("word") || 
+          mimeType.includes("document") || 
+          conversionType === "pdf-to-word") {
+        
+        const blob = new Blob([convertedContent], { type: mimeType });
+        createAndDownloadFile(blob);
+      } 
+      else if (convertedContent.startsWith("data:")) {
+        fetch(convertedContent)
+          .then(res => res.blob())
+          .then(blob => createAndDownloadFile(blob))
+          .catch(err => {
+            console.error("Error processing data URL:", err);
+            const base64Content = convertedContent.split(',')[1];
+            const binaryContent = atob(base64Content);
+            const bytes = new Uint8Array(binaryContent.length);
+            for (let i = 0; i < binaryContent.length; i++) {
+              bytes[i] = binaryContent.charCodeAt(i);
+            }
+            createAndDownloadFile(new Blob([bytes], { type: mimeType }));
+          });
+      } 
+      else if (/^[A-Za-z0-9+/=]+$/.test(convertedContent.slice(0, 100))) {
+        try {
+          const binaryContent = atob(convertedContent);
+          const bytes = new Uint8Array(binaryContent.length);
+          for (let i = 0; i < binaryContent.length; i++) {
+            bytes[i] = binaryContent.charCodeAt(i);
+          }
+          createAndDownloadFile(new Blob([bytes], { type: mimeType }));
+        } catch (e) {
+          console.error("Failed to decode base64:", e);
+          createAndDownloadFile(new Blob([convertedContent], { type: "text/plain" }));
+        }
+      }
+      else {
+        createAndDownloadFile(new Blob([convertedContent], { type: mimeType }));
+      }
+      
+      toast({
+        title: "File downloaded",
+        description: `${outputFileName} has been downloaded`,
+      });
+    } catch (error) {
+      console.error("Download error:", error);
+      toast({
+        title: "Download failed",
+        description: "There was an error downloading your file",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const createAndDownloadFile = (blob: Blob) => {
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = outputFileName;
+    a.download = outputFileName || "converted-file";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
-    toast({
-      title: "File downloaded",
-      description: `${outputFileName} has been downloaded`,
-    });
   };
   
   return (

@@ -51,11 +51,12 @@ async function processFileConversion(fileContent: string, fileName: string, conv
   // Special handling for PDF to Word conversions
   if (conversionType === "pdf-to-word") {
     try {
-      const convertedDocx = await convertPdfToWord(fileContent);
+      const extractedText = await extractTextWithAI(fileContent, "pdf-to-text");
+      
       return { 
         success: true, 
         fileName: outputFileName,
-        content: convertedDocx,
+        content: extractedText,
         contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         message: "PDF successfully converted to DOCX"
       };
@@ -114,70 +115,9 @@ async function processFileConversion(fileContent: string, fileName: string, conv
 }
 
 async function convertPdfToWord(pdfBase64: string) {
-  // This is where you'd implement actual PDF to DOCX conversion
-  // For now, we'll use Llama 3 to extract the text content and structure it as a Word document
-  
-  try {
-    const API_TOKEN = Deno.env.get("HF_API_TOKEN") || "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";
-    const API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8b-chat-hf";
-    
-    // Create a prompt for extracting and formatting text from PDF
-    const prompt = `
-    I have a PDF document encoded in base64 that I need to convert to properly formatted text.
-    The first 500 characters of the base64 string are: 
-    ${pdfBase64.substring(0, 500)}... (truncated)
-    
-    Please extract the text content while preserving:
-    1. Paragraphs and structure
-    2. Basic formatting (headings, paragraphs)
-    3. Any tables or lists if present
-    
-    Format the output as clean plain text that could be inserted into a Word document.
-    `;
-    
-    // Make API request to Llama 3
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${API_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 2048,
-          temperature: 0.1,
-          top_p: 0.9,
-        },
-        options: {
-          wait_for_model: true,
-        },
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API request failed with status ${response.status}`);
-    }
-    
-    const result = await response.json();
-    
-    // Extract the response text
-    let extractedText = "";
-    if (result && result.generated_text) {
-      extractedText = result.generated_text;
-    } else if (Array.isArray(result) && result.length > 0 && result[0].generated_text) {
-      extractedText = result[0].generated_text;
-    } else {
-      throw new Error("Unexpected API response format");
-    }
-    
-    // In a production environment, you would convert this text to actual DOCX format
-    // For now, we'll just return the formatted text that can be displayed properly
-    return extractedText;
-  } catch (error) {
-    console.error("PDF to Word conversion error:", error);
-    throw error;
-  }
+  // This function is now deprecated since we're using the text extraction directly
+  // This is kept for backward compatibility
+  return await extractTextWithAI(pdfBase64, "pdf-to-text");
 }
 
 async function extractTextWithAI(fileContent: string, conversionType: string) {
@@ -193,6 +133,8 @@ async function extractTextWithAI(fileContent: string, conversionType: string) {
     
     Please extract any text you can identify from this content and format it in a clean, readable way.
     Preserve paragraphs, lists, and any structure you can detect.
+    If this is a document with tables, try to preserve the table structure as best as possible.
+    If this content looks like it might be a letter or form, please maintain the formatting.
     `;
     
     // Make API request to Llama 3
@@ -205,7 +147,7 @@ async function extractTextWithAI(fileContent: string, conversionType: string) {
       body: JSON.stringify({
         inputs: prompt,
         parameters: {
-          max_new_tokens: 1500,
+          max_new_tokens: 2500,  // Increased token limit for longer documents
           temperature: 0.1,
           top_p: 0.9,
         },
