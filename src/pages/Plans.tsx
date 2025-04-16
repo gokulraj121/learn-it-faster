@@ -1,9 +1,18 @@
-
 import { useAuth } from "@/components/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { FeatureCard } from "@/components/FeatureCard";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Users, Award, Clock, Lightning, Languages, BadgeCheck, Mail, Rocket } from "lucide-react";
+import { 
+  CheckCircle, 
+  Users, 
+  Award, 
+  Clock, 
+  Zap,
+  Languages, 
+  BadgeCheck, 
+  Mail, 
+  Rocket 
+} from "lucide-react";
 
 export default function Plans() {
   const { user } = useAuth();
@@ -112,7 +121,7 @@ export default function Plans() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="bg-black/10 backdrop-blur-sm border border-white/5 rounded-xl p-6">
               <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-4">
-                <Lightning className="h-6 w-6 text-primary" />
+                <Zap className="h-6 w-6 text-primary" />
               </div>
               <h3 className="text-xl font-bold mb-2">AI-Powered Actions</h3>
               <p className="text-muted-foreground">Credits are used when you perform AI-powered actions like generating flashcards or creating infographics.</p>
