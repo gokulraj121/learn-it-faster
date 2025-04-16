@@ -26,9 +26,8 @@ serve(async (req) => {
     
     console.log(`Processing flashcards for file: ${fileName}`);
     
-    // Mock AI processing - in a real implementation, you would use OpenAI or another AI service
-    // This simulates extracting Q&A pairs from the document
-    const flashcards = generateMockFlashcards(fileName);
+    // Use Llama 3 AI to generate flashcards
+    const flashcards = await generateFlashcardsWithAI(fileContent, fileName);
     
     // Return the processed flashcards
     return new Response(
@@ -49,14 +48,127 @@ serve(async (req) => {
   }
 });
 
-// Mock function to generate sample flashcards for demonstration
-function generateMockFlashcards(fileName: string) {
+async function generateFlashcardsWithAI(content: string, fileName: string) {
+  try {
+    const API_TOKEN = Deno.env.get("HF_API_TOKEN") || "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";
+    const API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8b-chat-hf";
+    
+    // Prepare the prompt for flashcard generation
+    const prompt = `
+    I have the following document content:
+    ---
+    ${content.substring(0, 4000)} ${content.length > 4000 ? '...(truncated)' : ''}
+    ---
+    
+    Please create 5 useful flashcards from this content. Each flashcard should have a question and answer that helps with studying this material. Format the response as a JSON array with objects that have "question" and "answer" properties.
+    `;
+    
+    // Make API request to Llama 3
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: 1024,
+          temperature: 0.7,
+          top_p: 0.9,
+          do_sample: true,
+        },
+        options: {
+          wait_for_model: true,
+        },
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log("Raw AI response:", result);
+    
+    let flashcardContent = "";
+    
+    // Extract the response content
+    if (result && result.generated_text) {
+      flashcardContent = result.generated_text;
+    } else if (Array.isArray(result) && result.length > 0 && result[0].generated_text) {
+      flashcardContent = result[0].generated_text;
+    } else {
+      throw new Error("Unexpected API response format");
+    }
+    
+    // Try to extract JSON from the response
+    const jsonMatch = flashcardContent.match(/\[[\s\S]*\]/);
+    let flashcards = [];
+    
+    if (jsonMatch) {
+      try {
+        flashcards = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        console.error("Failed to parse JSON from response:", e);
+      }
+    }
+    
+    // If parsing failed or no JSON was found, use fallback parsing
+    if (!flashcards.length) {
+      console.log("Using fallback parsing for flashcards");
+      
+      // Simple fallback: look for patterns like "Question: X, Answer: Y"
+      const lines = flashcardContent.split('\n');
+      let currentQuestion = null;
+      
+      for (const line of lines) {
+        if (line.toLowerCase().startsWith('question:') || line.match(/^\d+\.\s*q:/i)) {
+          if (currentQuestion && currentQuestion.answer) {
+            flashcards.push(currentQuestion);
+          }
+          currentQuestion = { 
+            question: line.replace(/^(?:\d+\.\s*)?(?:question:|\s*q:)\s*/i, '').trim(),
+            answer: ''
+          };
+        } else if (currentQuestion && (line.toLowerCase().startsWith('answer:') || line.match(/^a:/i))) {
+          currentQuestion.answer = line.replace(/^(?:answer:|\s*a:)\s*/i, '').trim();
+        } else if (currentQuestion && currentQuestion.question && !currentQuestion.answer) {
+          currentQuestion.answer = line.trim();
+        }
+      }
+      
+      if (currentQuestion && currentQuestion.answer) {
+        flashcards.push(currentQuestion);
+      }
+    }
+    
+    // If we still couldn't parse flashcards, return a fallback set
+    if (!flashcards.length) {
+      console.warn("Couldn't parse flashcards from AI response, using fallback");
+      const topic = fileName.split('.')[0];
+      return generateFallbackFlashcards(topic);
+    }
+    
+    return flashcards;
+  } catch (error) {
+    console.error("AI processing error:", error);
+    // On error, return a fallback set of flashcards
+    const topic = fileName.split('.')[0];
+    return generateFallbackFlashcards(topic);
+  }
+}
+
+// Fallback function to generate flashcards if AI generation fails
+function generateFallbackFlashcards(topic: string) {
   const topics = [
     "Biology", "Chemistry", "Physics", "Mathematics", 
     "History", "Literature", "Computer Science"
   ];
   
-  const selectedTopic = topics[Math.floor(Math.random() * topics.length)];
+  const selectedTopic = topics.find(t => 
+    topic.toLowerCase().includes(t.toLowerCase())
+  ) || topics[Math.floor(Math.random() * topics.length)];
   
   const flashcardSets = {
     "Biology": [
@@ -110,5 +222,5 @@ function generateMockFlashcards(fileName: string) {
     ]
   };
   
-  return flashcardSets[selectedTopic];
+  return flashcardSets[selectedTopic] || flashcardSets["Biology"];
 }

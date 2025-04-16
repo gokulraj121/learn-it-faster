@@ -9,3 +9,10 @@ verify_jwt = false
 
 [functions.generate-infographic]
 verify_jwt = true
+
+[api.jwt]
+middleware.keys = ["public_key", "private_key"]
+
+[api]
+enabled_apis = ["rest", "realtime", "storage", "auth"]
+

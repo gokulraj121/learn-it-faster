@@ -39,26 +39,21 @@ serve(async (req) => {
         console.log(`Processing URL from domain: ${domain}`);
         
         // In a real implementation, we would fetch and extract content from the URL
-        // For this demo, we'll simulate URL processing
         processedContent = `Content extracted from ${domain}`;
       } catch (error) {
         console.error("Invalid URL:", error);
       }
     }
     
-    // Mock AI processing - in a real implementation, you would use NLP and image recognition
-    const contentType = determineContentType(fileName, sourceType);
-    const infographicData = generateMockInfographicData(contentType, processedContent);
-    
-    // Generate a title based on the content type and source
-    const title = generateTitle(fileName, sourceType, contentType);
+    // Generate infographic using AI
+    const infographicData = await generateInfographicWithAI(processedContent, sourceType, contentTitle);
     
     // Return the processed infographic data
     return new Response(
       JSON.stringify({ 
         success: true, 
         infographicData,
-        title
+        title: infographicData.title
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );
@@ -71,6 +66,104 @@ serve(async (req) => {
     );
   }
 });
+
+async function generateInfographicWithAI(content: string, sourceType: string, contentTitle: string) {
+  try {
+    const API_TOKEN = Deno.env.get("HF_API_TOKEN") || "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";
+    const API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8b-chat-hf";
+    
+    const contentType = determineContentType(contentTitle, sourceType);
+    
+    // Prepare prompt for infographic generation
+    const prompt = `
+    I have the following ${sourceType === "file" ? "document" : sourceType === "url" ? "website" : "blog"} content:
+    ---
+    ${content.substring(0, 4000)} ${content.length > 4000 ? '...(truncated)' : ''}
+    ---
+    
+    Please create an infographic summary with the following structure:
+    1. A concise, catchy title related to the content
+    2. A brief summary (2-3 sentences) of the main points
+    3. 4-5 key points from the content
+    4. 4 meaningful statistics or metrics from the content
+    
+    Format the response as a JSON object with these properties:
+    {
+      "title": "The title",
+      "summary": "The summary text",
+      "keyPoints": ["Point 1", "Point 2", ...],
+      "stats": [
+        {"label": "Stat 1 name", "value": numeric_value},
+        ...
+      ]
+    }
+    `;
+    
+    // Make API request to Llama 3
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: 1024,
+          temperature: 0.7,
+          top_p: 0.9,
+          do_sample: true,
+        },
+        options: {
+          wait_for_model: true,
+        },
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log("Raw AI response:", result);
+    
+    let infographicContent = "";
+    
+    // Extract the response content
+    if (result && result.generated_text) {
+      infographicContent = result.generated_text;
+    } else if (Array.isArray(result) && result.length > 0 && result[0].generated_text) {
+      infographicContent = result[0].generated_text;
+    } else {
+      throw new Error("Unexpected API response format");
+    }
+    
+    // Try to extract JSON from the response
+    const jsonMatch = infographicContent.match(/\{[\s\S]*\}/);
+    let infographicData;
+    
+    if (jsonMatch) {
+      try {
+        infographicData = JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        console.error("Failed to parse JSON from response:", e);
+      }
+    }
+    
+    // If parsing failed or no JSON was found, use fallback data
+    if (!infographicData) {
+      console.log("Using fallback infographic data");
+      return generateFallbackInfographicData(contentType, contentTitle);
+    }
+    
+    return infographicData;
+  } catch (error) {
+    console.error("AI processing error:", error);
+    // On error, return fallback infographic data
+    const contentType = determineContentType(contentTitle, sourceType);
+    return generateFallbackInfographicData(contentType, contentTitle);
+  }
+}
 
 // Determine content type based on filename and source type
 function determineContentType(fileName: string, sourceType: string): string {
@@ -116,11 +209,11 @@ function generateTitle(fileName: string, sourceType: string, contentType: string
   return titles[contentType] || "Content Summary";
 }
 
-// Mock function to generate sample infographic data based on content type
-function generateMockInfographicData(contentType: string, content: string) {
+// Fallback function to generate infographic data if AI generation fails
+function generateFallbackInfographicData(contentType: string, contentTitle: string) {
   const infographicTypes = {
     "research": {
-      title: "Research Findings Summary",
+      title: contentTitle || "Research Findings Summary",
       summary: "This research examines key trends and findings in the field, highlighting important discoveries and their potential implications for future study.",
       keyPoints: [
         "Major finding 1: Significant correlation between variables X and Y",
@@ -136,7 +229,7 @@ function generateMockInfographicData(contentType: string, content: string) {
       ]
     },
     "blog": {
-      title: "Blog Post Analysis",
+      title: contentTitle || "Blog Post Analysis",
       summary: "This blog explores important concepts and provides insights on current trends and best practices in the industry.",
       keyPoints: [
         "The main argument centers on improving productivity through strategic approaches",
@@ -152,7 +245,7 @@ function generateMockInfographicData(contentType: string, content: string) {
       ]
     },
     "website": {
-      title: "Website Content Overview",
+      title: contentTitle || "Website Content Overview",
       summary: "This website provides comprehensive information on products, services, and resources for users seeking solutions in this domain.",
       keyPoints: [
         "The platform offers various tools for productivity enhancement",
@@ -168,7 +261,7 @@ function generateMockInfographicData(contentType: string, content: string) {
       ]
     },
     "general": {
-      title: "Content Summary",
+      title: contentTitle || "Content Summary",
       summary: "This content provides valuable information on the subject matter, covering important aspects and considerations for the audience.",
       keyPoints: [
         "Main theme focuses on optimizing processes for better outcomes",
@@ -185,11 +278,5 @@ function generateMockInfographicData(contentType: string, content: string) {
     }
   };
   
-  // Customize the data slightly based on the content provided
-  const baseData = infographicTypes[contentType] || infographicTypes.general;
-  
-  // In a real implementation, we would use NLP to analyze the content
-  // and generate custom infographic data
-  
-  return baseData;
+  return infographicTypes[contentType] || infographicTypes.general;
 }

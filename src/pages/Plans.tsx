@@ -1,3 +1,4 @@
+
 import { useAuth } from "@/components/AuthContext";
 import { Navbar } from "@/components/Navbar";
 import { FeatureCard } from "@/components/FeatureCard";
