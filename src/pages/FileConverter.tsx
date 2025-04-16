@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { ChevronLeft, Download, FileIcon, RotateCw, ArrowDownUp } from "lucide-react";
 import { FileUpload } from "@/components/FileUpload";
@@ -81,6 +82,10 @@ export default function FileConverter() {
       
       if (error) throw error;
       
+      if (!data.success) {
+        throw new Error(data.message || "Conversion failed");
+      }
+      
       setConverted(true);
       setOutputFileName(data.fileName);
       setConvertedContent(data.content);
@@ -105,7 +110,12 @@ export default function FileConverter() {
   
   const downloadResult = () => {
     if (!converted || !outputFileName || !convertedContent) {
-      console.error("Cannot download: missing data", { converted, outputFileName, contentType });
+      console.error("Cannot download: missing data", { converted, outputFileName, contentType, convertedContent: !!convertedContent });
+      toast({
+        title: "Download error",
+        description: "Missing conversion data. Please try converting again.",
+        variant: "destructive",
+      });
       return;
     }
     
@@ -113,46 +123,54 @@ export default function FileConverter() {
     
     try {
       let mimeType = contentType || "application/octet-stream";
+      let blob: Blob;
       
-      if (mimeType.startsWith("text/") || 
-          mimeType.includes("word") || 
-          mimeType.includes("document") || 
-          conversionType === "pdf-to-word") {
-        
-        const blob = new Blob([convertedContent], { type: mimeType });
-        createAndDownloadFile(blob);
+      // Handle different content types
+      if (mimeType.includes("word") || mimeType.includes("document") || 
+          conversionType === "pdf-to-word" || conversionType === "pdf-to-text" || 
+          conversionType === "image-to-text") {
+        // For text-based content
+        blob = new Blob([convertedContent], { type: mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ? "text/plain" : mimeType });
       } 
       else if (convertedContent.startsWith("data:")) {
-        fetch(convertedContent)
-          .then(res => res.blob())
-          .then(blob => createAndDownloadFile(blob))
-          .catch(err => {
-            console.error("Error processing data URL:", err);
-            const base64Content = convertedContent.split(',')[1];
-            const binaryContent = atob(base64Content);
-            const bytes = new Uint8Array(binaryContent.length);
-            for (let i = 0; i < binaryContent.length; i++) {
-              bytes[i] = binaryContent.charCodeAt(i);
-            }
-            createAndDownloadFile(new Blob([bytes], { type: mimeType }));
-          });
+        // For data URLs (images)
+        const base64Content = convertedContent.split(',')[1];
+        const binaryString = atob(base64Content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        blob = new Blob([bytes], { type: mimeType });
       } 
-      else if (/^[A-Za-z0-9+/=]+$/.test(convertedContent.slice(0, 100))) {
+      else if (/^[A-Za-z0-9+/=]+$/.test(convertedContent.substring(0, 100))) {
+        // For base64 encoded content
         try {
-          const binaryContent = atob(convertedContent);
-          const bytes = new Uint8Array(binaryContent.length);
-          for (let i = 0; i < binaryContent.length; i++) {
-            bytes[i] = binaryContent.charCodeAt(i);
+          const binaryString = atob(convertedContent);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
           }
-          createAndDownloadFile(new Blob([bytes], { type: mimeType }));
+          blob = new Blob([bytes], { type: mimeType });
         } catch (e) {
-          console.error("Failed to decode base64:", e);
-          createAndDownloadFile(new Blob([convertedContent], { type: "text/plain" }));
+          // If base64 decoding fails, treat as plain text
+          console.warn("Base64 decoding failed, treating as text:", e);
+          blob = new Blob([convertedContent], { type: "text/plain" });
         }
       }
       else {
-        createAndDownloadFile(new Blob([convertedContent], { type: mimeType }));
+        // Default fallback
+        blob = new Blob([convertedContent], { type: mimeType });
       }
+      
+      // Create and trigger download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = outputFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       
       toast({
         title: "File downloaded",

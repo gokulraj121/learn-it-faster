@@ -53,14 +53,38 @@ async function generateFlashcardsWithAI(content: string, fileName: string) {
     const API_TOKEN = Deno.env.get("HF_API_TOKEN") || "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";
     const API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8b-chat-hf";
     
+    // Extract actual content from base64 if needed
+    let processedContent = content;
+    if (content.startsWith('data:')) {
+      // For PDFs and images in base64 format, we send the raw base64
+      processedContent = content;
+    }
+    
     // Prepare the prompt for flashcard generation
     const prompt = `
     I have the following document content:
     ---
-    ${content.substring(0, 4000)} ${content.length > 4000 ? '...(truncated)' : ''}
+    ${processedContent.substring(0, 4000)} ${processedContent.length > 4000 ? '...(truncated)' : ''}
     ---
     
-    Please create 5 useful flashcards from this content. Each flashcard should have a question and answer that helps with studying this material. Format the response as a JSON array with objects that have "question" and "answer" properties.
+    Please create 10 useful flashcards from this content. Each flashcard should have a specific question and a comprehensive answer that helps with studying this material.
+    
+    The questions should cover key concepts, definitions, facts, and important points from the content.
+    The answers should be detailed but concise, complete sentences that fully address the question.
+    
+    Format the response as a JSON array with objects that have "question" and "answer" properties. ONLY return the JSON array without any other text.
+    
+    Example format:
+    [
+      {
+        "question": "What is the capital of France?",
+        "answer": "The capital of France is Paris."
+      },
+      {
+        "question": "When did World War II end?",
+        "answer": "World War II ended in 1945 with the surrender of Germany in May and Japan in September."
+      }
+    ]
     `;
     
     // Make API request to Llama 3
@@ -73,9 +97,9 @@ async function generateFlashcardsWithAI(content: string, fileName: string) {
       body: JSON.stringify({
         inputs: prompt,
         parameters: {
-          max_new_tokens: 1024,
-          temperature: 0.7,
-          top_p: 0.9,
+          max_new_tokens: 2000,
+          temperature: 0.2,
+          top_p: 0.95,
           do_sample: true,
         },
         options: {
@@ -143,84 +167,39 @@ async function generateFlashcardsWithAI(content: string, fileName: string) {
       }
     }
     
-    // If we still couldn't parse flashcards, return a fallback set
+    // If we still couldn't parse flashcards, generate from the content directly
     if (!flashcards.length) {
-      console.warn("Couldn't parse flashcards from AI response, using fallback");
-      const topic = fileName.split('.')[0];
-      return generateFallbackFlashcards(topic);
+      console.warn("Couldn't parse flashcards from AI response, generating manually");
+      
+      const sentences = processedContent
+        .replace(/\n/g, ' ')
+        .replace(/\s+/g, ' ')
+        .split(/[.!?]+/)
+        .filter(s => s.trim().length > 20)
+        .slice(0, 10);
+      
+      flashcards = sentences.map((sentence, index) => {
+        const cleanSentence = sentence.trim();
+        const words = cleanSentence.split(' ');
+        
+        if (words.length < 5) return null;
+        
+        // Create a question by removing a key word or phrase
+        const keyWordIndex = Math.floor(words.length / 2);
+        const keyWord = words[keyWordIndex];
+        
+        const question = cleanSentence.replace(keyWord, "________");
+        
+        return {
+          question: `What word or phrase fits in the blank? "${question}"`,
+          answer: keyWord
+        };
+      }).filter(Boolean);
     }
     
     return flashcards;
   } catch (error) {
     console.error("AI processing error:", error);
-    // On error, return a fallback set of flashcards
-    const topic = fileName.split('.')[0];
-    return generateFallbackFlashcards(topic);
+    throw new Error("Failed to generate flashcards. Please try again with a different file.");
   }
-}
-
-// Fallback function to generate flashcards if AI generation fails
-function generateFallbackFlashcards(topic: string) {
-  const topics = [
-    "Biology", "Chemistry", "Physics", "Mathematics", 
-    "History", "Literature", "Computer Science"
-  ];
-  
-  const selectedTopic = topics.find(t => 
-    topic.toLowerCase().includes(t.toLowerCase())
-  ) || topics[Math.floor(Math.random() * topics.length)];
-  
-  const flashcardSets = {
-    "Biology": [
-      { question: "What is photosynthesis?", answer: "The process by which green plants and some other organisms use sunlight to synthesize nutrients from carbon dioxide and water." },
-      { question: "What is cellular respiration?", answer: "The process by which cells break down glucose and release energy in the form of ATP." },
-      { question: "What is the function of mitochondria?", answer: "Often called the powerhouse of the cell, mitochondria generate most of the cell's supply of ATP, the energy currency of cells." },
-      { question: "What is DNA?", answer: "Deoxyribonucleic acid, a self-replicating material present in nearly all living organisms as the main constituent of chromosomes." },
-      { question: "What are the four main types of tissue in the human body?", answer: "Epithelial, connective, muscular, and nervous tissue." }
-    ],
-    "Chemistry": [
-      { question: "What is the periodic table?", answer: "A tabular arrangement of chemical elements, organized by atomic number, electron configuration, and recurring chemical properties." },
-      { question: "What is an isotope?", answer: "Variants of a particular chemical element which differ in neutron number but have the same number of protons." },
-      { question: "What is the pH scale?", answer: "A logarithmic scale used to specify the acidity or basicity of an aqueous solution, ranging from 0 (most acidic) to 14 (most basic)." },
-      { question: "What is a catalyst?", answer: "A substance that increases the rate of a chemical reaction without itself undergoing any permanent chemical change." },
-      { question: "What is a chemical bond?", answer: "A lasting attraction between atoms, ions or molecules that enables the formation of chemical compounds." }
-    ],
-    "Physics": [
-      { question: "What is Newton's First Law of Motion?", answer: "An object will remain at rest or in uniform motion in a straight line unless acted upon by an external force." },
-      { question: "What is the law of conservation of energy?", answer: "Energy can neither be created nor destroyed; rather, it can only be transformed or transferred from one form to another." },
-      { question: "What is Ohm's Law?", answer: "The current through a conductor between two points is directly proportional to the voltage across the two points (I = V/R)." },
-      { question: "What is quantum mechanics?", answer: "A fundamental theory in physics that provides a description of the physical properties of nature at the scale of atoms and subatomic particles." },
-      { question: "What are the three states of matter?", answer: "Solid, liquid, and gas (plasma is sometimes considered the fourth state)." }
-    ],
-    "Mathematics": [
-      { question: "What is the Pythagorean theorem?", answer: "In a right-angled triangle, the square of the length of the hypotenuse equals the sum of squares of the other two sides (a² + b² = c²)." },
-      { question: "What is a prime number?", answer: "A natural number greater than 1 that is not a product of two smaller natural numbers." },
-      { question: "What is calculus?", answer: "The mathematical study of continuous change, with two major branches: differential calculus and integral calculus." },
-      { question: "What is a function in mathematics?", answer: "A relation between a set of inputs and a set of permissible outputs where each input is related to exactly one output." },
-      { question: "What is a logarithm?", answer: "The power to which a base must be raised to produce a given number." }
-    ],
-    "History": [
-      { question: "When did World War II end?", answer: "World War II ended in 1945 with the surrender of Germany in May and Japan in September." },
-      { question: "Who was the first President of the United States?", answer: "George Washington, who served from 1789 to 1797." },
-      { question: "What was the Renaissance?", answer: "A period in European history marking the transition from the Middle Ages to modernity, characterized by an emphasis on art, literature, and learning." },
-      { question: "What was the Industrial Revolution?", answer: "The transition to new manufacturing processes in Europe and the United States, in the period from about 1760 to 1840." },
-      { question: "What was the Cold War?", answer: "A period of geopolitical tension between the Soviet Union and the United States and their respective allies from 1947 to 1991." }
-    ],
-    "Literature": [
-      { question: "Who wrote 'Romeo and Juliet'?", answer: "William Shakespeare." },
-      { question: "What is a metaphor?", answer: "A figure of speech in which a word or phrase is applied to an object or action to which it is not literally applicable." },
-      { question: "What is the 'stream of consciousness' technique?", answer: "A narrative mode that seeks to portray an individual's point of view by giving the written equivalent of the character's thought processes." },
-      { question: "Who wrote '1984'?", answer: "George Orwell." },
-      { question: "What is a protagonist?", answer: "The leading character or one of the major characters in a drama, movie, novel, or other fictional text." }
-    ],
-    "Computer Science": [
-      { question: "What is an algorithm?", answer: "A step-by-step procedure for solving a problem or accomplishing a task." },
-      { question: "What is a variable in programming?", answer: "A storage location paired with an associated symbolic name which contains a value." },
-      { question: "What is object-oriented programming?", answer: "A programming paradigm based on the concept of 'objects', which can contain data and code: data in the form of fields, and code in the form of procedures." },
-      { question: "What is a database?", answer: "An organized collection of data, generally stored and accessed electronically from a computer system." },
-      { question: "What is machine learning?", answer: "A field of study that gives computers the ability to learn without being explicitly programmed." }
-    ]
-  };
-  
-  return flashcardSets[selectedTopic] || flashcardSets["Biology"];
 }
