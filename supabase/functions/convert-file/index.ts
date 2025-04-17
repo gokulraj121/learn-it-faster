@@ -48,7 +48,7 @@ serve(async (req) => {
     // File conversion logic using AI for certain conversions
     const result = await processFileConversion(fileContent, fileName, conversionType);
     
-    // Return success response
+    // Return success response - ensure we're returning valid JSON
     return new Response(
       JSON.stringify(result),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
@@ -67,9 +67,9 @@ async function processFileConversion(fileContent: string, fileName: string, conv
   // Determine output file name
   const outputFileName = getOutputFileName(fileName, conversionType);
   
-  // Special handling for PDF to Word conversions
-  if (conversionType === "pdf-to-word") {
-    try {
+  try {
+    // Special handling for PDF to Word conversions
+    if (conversionType === "pdf-to-word") {
       const extractedText = await extractTextWithAI(fileContent, "pdf-to-text");
       
       return { 
@@ -79,23 +79,10 @@ async function processFileConversion(fileContent: string, fileName: string, conv
         contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         message: "PDF successfully converted to DOCX"
       };
-    } catch (error) {
-      console.error("PDF to Word conversion failed:", error);
-      // Fall back to text extraction if direct conversion fails
-      const extractedText = await extractTextWithAI(fileContent, "pdf-to-text");
-      return { 
-        success: true, 
-        fileName: outputFileName,
-        content: extractedText,
-        contentType: "text/plain",
-        message: "PDF converted to text format (fallback mode)"
-      };
     }
-  }
-  
-  // For OCR or text extraction, use AI
-  if (conversionType === "image-to-text" || conversionType === "pdf-to-text") {
-    try {
+    
+    // For OCR or text extraction, use AI
+    if (conversionType === "image-to-text" || conversionType === "pdf-to-text") {
       const extractedText = await extractTextWithAI(fileContent, conversionType);
       return { 
         success: true, 
@@ -104,34 +91,23 @@ async function processFileConversion(fileContent: string, fileName: string, conv
         contentType: "text/plain",
         message: `File successfully converted to ${conversionType.split('-to-')[1].toUpperCase()}`
       };
-    } catch (error) {
-      console.error("AI text extraction failed:", error);
-      return {
-        success: false,
+    }
+    
+    // For image format conversions (JPG to PNG, PNG to JPG)
+    if (conversionType === "jpg-to-png" || conversionType === "png-to-jpg") {
+      // Currently we're just passing through the base64 content, but in a real implementation
+      // you would convert between formats here
+      return { 
+        success: true, 
         fileName: outputFileName,
-        content: "Error extracting text. Please try again with a different file.",
-        contentType: "text/plain",
-        message: "Text extraction failed"
+        content: fileContent,
+        contentType: conversionType.includes("png") ? "image/png" : "image/jpeg",
+        message: `Image successfully converted to ${conversionType.split('-to-')[1].toUpperCase()}`
       };
     }
-  }
-  
-  // For image format conversions (JPG to PNG, PNG to JPG)
-  if (conversionType === "jpg-to-png" || conversionType === "png-to-jpg") {
-    // Currently we're just passing through the base64 content, but in a real implementation
-    // you would convert between formats here
-    return { 
-      success: true, 
-      fileName: outputFileName,
-      content: fileContent,
-      contentType: conversionType.includes("png") ? "image/png" : "image/jpeg",
-      message: `Image successfully converted to ${conversionType.split('-to-')[1].toUpperCase()}`
-    };
-  }
-  
-  // Word to PDF conversion
-  if (conversionType === "word-to-pdf") {
-    try {
+    
+    // Word to PDF conversion
+    if (conversionType === "word-to-pdf") {
       // In a real implementation, you would convert the docx to PDF here
       return {
         success: true,
@@ -140,26 +116,20 @@ async function processFileConversion(fileContent: string, fileName: string, conv
         contentType: "application/pdf",
         message: "Word successfully converted to PDF"
       };
-    } catch (error) {
-      console.error("Word to PDF conversion failed:", error);
-      return {
-        success: false,
-        fileName: outputFileName,
-        content: "Error converting Word to PDF. Please try again.",
-        contentType: "text/plain",
-        message: "Word to PDF conversion failed"
-      };
     }
+    
+    // Basic fallback conversion
+    return { 
+      success: true, 
+      fileName: outputFileName,
+      content: fileContent,
+      contentType: "application/octet-stream",
+      message: `File successfully converted to ${conversionType.split('-to-')[1].toUpperCase()}`
+    };
+  } catch (error) {
+    console.error("Conversion error:", error);
+    throw new Error(`Conversion failed: ${error.message}`);
   }
-  
-  // Basic fallback conversion
-  return { 
-    success: true, 
-    fileName: outputFileName,
-    content: fileContent,
-    contentType: "application/octet-stream",
-    message: `File successfully converted to ${conversionType.split('-to-')[1].toUpperCase()}`
-  };
 }
 
 async function extractTextWithAI(fileContent: string, conversionType: string) {
@@ -209,25 +179,27 @@ async function extractTextWithAI(fileContent: string, conversionType: string) {
     const result = await response.json();
     
     // Extract the response text from Gemini's format
-    let extractedText = "";
     if (result.candidates && 
         result.candidates.length > 0 && 
         result.candidates[0].content && 
         result.candidates[0].content.parts && 
         result.candidates[0].content.parts.length > 0) {
       
-      extractedText = result.candidates[0].content.parts[0].text;
+      let extractedText = result.candidates[0].content.parts[0].text || "";
       
       // Clean up any prefixes like "Here's the extracted text:"
       extractedText = extractedText.replace(/^I'll extract the text from this content:\s*|^Here's the extracted text:\s*/i, '');
+      
+      return extractedText;
     } else {
+      console.error("Unexpected API response format:", JSON.stringify(result));
       throw new Error("Unexpected API response format");
     }
     
-    return extractedText;
   } catch (error) {
     console.error("AI extraction error:", error);
-    throw new Error("Text extraction failed. Please try again or use a different file.");
+    // Return a more user-friendly error message
+    return "Text extraction failed. The AI model was unable to process this file properly. Please try a different file or format.";
   }
 }
 

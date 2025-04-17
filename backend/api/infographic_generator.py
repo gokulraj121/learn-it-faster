@@ -14,6 +14,14 @@ llm = LlamaModel()
 @infographic_bp.route('/generate-infographic', methods=['POST'])
 def generate_infographic():
     try:
+        content = ""
+        filename = "document"
+        custom_prompt = None
+        
+        # Check for custom prompt
+        if 'prompt' in request.json:
+            custom_prompt = request.json.get('prompt')
+        
         # Handle different input types
         if 'file' in request.files:
             # Process uploaded PDF
@@ -60,27 +68,29 @@ def generate_infographic():
             return jsonify({"error": "No input provided (file, URL, or content)"}), 400
             
         # Generate infographic content using LLM
-        infographic_data = generate_infographic_with_llm(content, filename)
+        infographic_data = generate_infographic_with_llm(content, filename, custom_prompt)
         
         return jsonify({
             "success": True,
             "infographic": infographic_data,
-            "title": os.path.splitext(filename)[0] if isinstance(filename, str) else "Infographic"
+            "title": os.path.splitext(filename)[0] if isinstance(filename, str) else "Infography"
         })
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-def generate_infographic_with_llm(content, filename):
+def generate_infographic_with_llm(content, filename, custom_prompt=None):
     try:
-        # Prepare prompt for infographic generation
-        prompt = f"""
+        # Default prompt for infographic generation
+        default_prompt = f"""
         I have the following document content:
         ---
         {content[:4000]}{"..." if len(content) > 4000 else ""}
         ---
         
-        I want to create an infographic from this content. Please extract the most important information and structure it in a way that would work well for an infographic.
+        Create a visually appealing and easy-to-understand infographic based on this content. 
+        The infographic should be structured with clear sections, include concise text, bullet points where needed.
+        Each section should have a bold heading. The tone should be friendly and professional.
         
         Include the following elements:
         1. A short, catchy title
@@ -119,8 +129,17 @@ def generate_infographic_with_llm(content, filename):
         }}
         """
         
+        # Use custom prompt if provided, otherwise use default
+        prompt = custom_prompt if custom_prompt else default_prompt
+        
+        # If using custom prompt, append content to it
+        if custom_prompt:
+            prompt += f"\n\nHere is the content to base the infographic on:\n{content[:4000]}{'...' if len(content) > 4000 else ''}"
+        
         # Generate infographic data using LLM
+        print("Sending prompt to LLM for infographic generation")
         result = llm.generate(prompt)
+        print(f"LLM result for infographic: {result[:200]}...")
         
         # Parse the response to get the JSON
         try:
@@ -130,22 +149,29 @@ def generate_infographic_with_llm(content, filename):
             
             if start_idx >= 0 and end_idx > start_idx:
                 json_str = result[start_idx:end_idx]
-                infographic_data = json.loads(json_str)
-                return infographic_data
+                try:
+                    infographic_data = json.loads(json_str)
+                    
+                    # Ensure all required fields are present
+                    required_fields = ['title', 'sections']
+                    for field in required_fields:
+                        if field not in infographic_data:
+                            infographic_data[field] = []
+                    
+                    if 'statistics' not in infographic_data:
+                        infographic_data['statistics'] = []
+                        
+                    if 'conclusion' not in infographic_data:
+                        infographic_data['conclusion'] = "See document for complete details."
+                        
+                    return infographic_data
+                    
+                except json.JSONDecodeError as e:
+                    print(f"JSON parsing error: {e}")
+                    print(f"Invalid JSON string: {json_str}")
+                    raise
             else:
-                # Fallback: create basic infographic structure
-                return {
-                    "title": f"Key Points from {filename}",
-                    "sections": [
-                        {
-                            "heading": "Main Topic",
-                            "content": content[:100] + "...",
-                            "icon": "file-text"
-                        }
-                    ],
-                    "statistics": [],
-                    "conclusion": "See document for complete details."
-                }
+                raise ValueError("No JSON object found in LLM response")
                 
         except Exception as e:
             print(f"Error parsing LLM response: {e}")

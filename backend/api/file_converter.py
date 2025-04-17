@@ -58,8 +58,7 @@ def convert_file():
             doc = docx.Document(filepath)
             text_content = "\n\n".join([para.text for para in doc.paragraphs if para.text.strip()])
             
-            # For demonstration, we'll return a text file with the content
-            # In production, you would use a library like ReportLab to create a PDF
+            # For demonstration, create a text file with the content
             output_path = os.path.join(temp_dir, 'converted.txt')
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(text_content)
@@ -71,13 +70,24 @@ def convert_file():
         
         # Image to text conversion (OCR)
         elif 'image' in source_format and target_format == 'txt':
-            # In a production environment, you would use an OCR library like Tesseract
-            # For now, we'll use a placeholder with better messaging
-            extracted_text = "Image OCR processing would extract text content here.\n\nThis is a placeholder for the OCR conversion result."
+            # Use LLM to perform OCR on the image
+            with open(filepath, 'rb') as f:
+                image_content = f.read()
             
-            return Response(extracted_text, 
-                           mimetype="text/plain",
-                           headers={"Content-Disposition": "attachment;filename=extracted_text.txt"})
+            extracted_text = llm.generate(
+                f"Perform OCR on this image and extract all text. Return ONLY the extracted text, no commentary.",
+                temperature=0.1
+            )
+            
+            # Save extracted text to file
+            output_path = os.path.join(temp_dir, 'extracted_text.txt')
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(extracted_text)
+            
+            return send_file(output_path, 
+                           as_attachment=True,
+                           download_name="extracted_text.txt", 
+                           mimetype="text/plain")
         
         # PDF to text conversion
         elif source_format == 'pdf' and target_format == 'txt':

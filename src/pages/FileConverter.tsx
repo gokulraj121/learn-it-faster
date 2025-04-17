@@ -67,8 +67,21 @@ export default function FileConverter() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Conversion failed');
+        const errorText = await response.text();
+        let errorMessage = "Conversion failed";
+        
+        try {
+          // Try to parse the error as JSON, but handle case where it's not valid JSON
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // If parsing fails, use the raw text if available
+          if (errorText) {
+            errorMessage = `Error: ${errorText.substring(0, 100)}`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
       
       // Get output filename from response headers if available

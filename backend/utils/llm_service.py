@@ -9,7 +9,7 @@ load_dotenv()
 
 class LlamaModel:
     def __init__(self):
-        # Use Gemini API Key
+        # Use provided Gemini API Key
         self.api_key = os.getenv('GEMINI_API_KEY', 'AIzaSyDGtUA1BNzNjxFcASfi5nHY7Y-lXZ1pvNM')
         self.api_url = "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent"
         self.headers = {

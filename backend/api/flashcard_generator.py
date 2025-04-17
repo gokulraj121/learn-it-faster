@@ -78,19 +78,20 @@ def generate_flashcards_with_llm(content, filename):
         
         Example format:
         [
-          {
+          {{
             "question": "What is the capital of France?",
             "answer": "The capital of France is Paris."
-          },
-          {
+          }},
+          {{
             "question": "When did World War II end?",
             "answer": "World War II ended in 1945 with the surrender of Germany in May and Japan in September."
-          }
+          }}
         ]
         """
         
         # Generate flashcards using LLM
         result = llm.generate(prompt)
+        print(f"LLM result for flashcards: {result[:200]}...")
         
         # Parse the response to get the JSON array
         try:
@@ -100,34 +101,42 @@ def generate_flashcards_with_llm(content, filename):
             
             if start_idx >= 0 and end_idx > start_idx:
                 json_str = result[start_idx:end_idx]
-                flashcards = json.loads(json_str)
-                return flashcards
+                try:
+                    flashcards = json.loads(json_str)
+                    # Validate flashcard format
+                    for card in flashcards:
+                        if "question" not in card or "answer" not in card:
+                            raise ValueError("Invalid flashcard format")
+                    return flashcards
+                except json.JSONDecodeError as e:
+                    print(f"JSON parsing error: {e}")
+                    print(f"Invalid JSON string: {json_str}")
+                    raise
             else:
-                # Fallback: create basic flashcards from content
-                sentences = content.replace('\n', ' ').split('.')
-                flashcards = []
-                
-                for i, sentence in enumerate(sentences[:10]):
-                    if len(sentence.strip()) > 20:
-                        words = sentence.strip().split()
-                        if len(words) < 5:
-                            continue
-                            
-                        # Create a simple question
-                        question = f"Complete the following: {' '.join(words[:len(words)//2])}..."
-                        answer = sentence.strip()
-                        
-                        flashcards.append({
-                            "question": question,
-                            "answer": answer
-                        })
-                
-                return flashcards
+                raise ValueError("No JSON array found in LLM response")
                 
         except Exception as e:
             print(f"Error parsing LLM response: {e}")
-            # Return empty array if parsing fails
-            return []
+            # Fallback: create basic flashcards from content
+            sentences = content.replace('\n', ' ').split('.')
+            flashcards = []
+            
+            for i, sentence in enumerate(sentences[:10]):
+                if len(sentence.strip()) > 20:
+                    words = sentence.strip().split()
+                    if len(words) < 5:
+                        continue
+                        
+                    # Create a simple question
+                    question = f"Complete the following: {' '.join(words[:len(words)//2])}..."
+                    answer = sentence.strip()
+                    
+                    flashcards.append({
+                        "question": question,
+                        "answer": answer
+                    })
+            
+            return flashcards
             
     except Exception as e:
         print(f"Error generating flashcards: {e}")
