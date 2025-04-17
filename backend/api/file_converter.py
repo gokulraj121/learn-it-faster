@@ -5,6 +5,7 @@ import tempfile
 from werkzeug.utils import secure_filename
 import pypdf
 import docx
+import json
 from backend.utils.llm_service import LlamaModel
 
 converter_bp = Blueprint('converter', __name__)

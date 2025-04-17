@@ -30,6 +30,7 @@ const App = () => (
             <Route path="/plans" element={<Plans />} />
             <Route path="/flashcard-generator" element={<FlashcardGenerator />} />
             <Route path="/file-converter" element={<FileConverter />} />
+            <Route path="/infography" element={<PdfToInfographic />} />
             <Route path="/pdf-to-infographic" element={<PdfToInfographic />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/payment-canceled" element={<PaymentCanceled />} />

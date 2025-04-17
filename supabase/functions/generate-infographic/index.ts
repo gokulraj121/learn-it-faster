@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -15,7 +14,7 @@ serve(async (req) => {
   try {
     // Extract the request body
     const requestData = await req.json();
-    const { fileContent, fileName, sourceType = "file" } = requestData;
+    const { fileContent, fileName, sourceType = "file", promptTemplate } = requestData;
     
     if (!fileContent) {
       return new Response(
@@ -50,7 +49,7 @@ serve(async (req) => {
     }
     
     // Generate infographic using AI
-    const infographicData = await generateInfographicWithAI(processedContent, sourceType, contentTitle);
+    const infographicData = await generateInfographicWithAI(processedContent, sourceType, contentTitle, promptTemplate);
     
     // Return the processed infographic data
     return new Response(
@@ -71,7 +70,7 @@ serve(async (req) => {
   }
 });
 
-async function generateInfographicWithAI(content: string, sourceType: string, contentTitle: string) {
+async function generateInfographicWithAI(content: string, sourceType: string, contentTitle: string, promptTemplate?: string) {
   try {
     const API_TOKEN = Deno.env.get("HF_API_TOKEN") || "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";
     const API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8b-chat-hf";
@@ -84,8 +83,8 @@ async function generateInfographicWithAI(content: string, sourceType: string, co
       promptContent = `URL: ${content}\n\nPlease analyze this URL and its contents to create an infographic.`;
     }
     
-    // Prepare prompt for infographic generation
-    const prompt = `
+    // Use the provided prompt template or fall back to default
+    const basePrompt = promptTemplate || `
     I have the following ${sourceType === "file" ? "document" : sourceType === "url" ? "website URL" : "blog"} content:
     ---
     ${promptContent.substring(0, 4000)} ${promptContent.length > 4000 ? '...(truncated)' : ''}
@@ -119,7 +118,7 @@ async function generateInfographicWithAI(content: string, sourceType: string, co
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        inputs: prompt,
+        inputs: basePrompt,
         parameters: {
           max_new_tokens: 1500,
           temperature: 0.3,
@@ -299,11 +298,6 @@ function createContentBasedInfographic(content: string, contentTitle: string, so
     contentType === "research" ? "The findings have important implications for future work" : 
     contentType === "blog" ? "Practical applications are highlighted throughout" :
     contentType === "website" ? "Resources are organized for optimal accessibility" :
-    "Practical examples illustrate theoretical concepts",
-    
-    contentType === "research" ? "Limitations and opportunities for further study are noted" : 
-    contentType === "blog" ? "The conclusion synthesizes key takeaways effectively" :
-    contentType === "website" ? "Integration capabilities expand functionality" :
     "Recommendations are provided based on evidence"
   ];
   

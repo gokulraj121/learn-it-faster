@@ -37,6 +37,37 @@ export default function PdfToInfographic() {
   const [url, setUrl] = useState("");
   const [sourceType, setSourceType] = useState<"file" | "url" | "text">("file");
   const [blogText, setBlogText] = useState("");
+  const [promptTemplate, setPromptTemplate] = useState(`
+Create a visually appealing and easy-to-understand infographic based on the following content. The infographic should be structured with clear sections, include concise text, bullet points where needed, and use engaging visuals like icons, charts, or illustrations. Each section should have a bold heading. The tone should be friendly and professional. Format it to be ideal for sharing on social media or embedding in a blog post.
+
+📌 Topic:
+[Insert your topic here – e.g., How Solar Energy Works, 5 Benefits of Meditation, Startup Launch Checklist]
+
+🧠 Key Points to Include:
+[Main point 1]
+[Main point 2]
+[Main point 3]
+[Main point 4]
+[Main point 5]
+
+🎨 Design Preferences:
+Color palette: [Choose colors – e.g., pastel, vibrant, minimal black & white]
+Font style: [e.g., modern sans-serif]
+Icon style: [flat / outline / 3D / simple]
+Layout style: [e.g., vertical scroll, horizontal blocks, grid-style]
+
+🧾 Branding (Optional):
+Brand name: [Your brand name]
+Logo: [Link or note – optional]
+Font/Color guidelines: [if any]
+
+📤 Output Format:
+Provide the infographic in image format (PNG/JPEG).
+Include a text-based version of the infographic for accessibility.
+
+✅ Final Goal:
+The infographic should help [target audience, e.g., students, entrepreneurs, eco-conscious consumers] easily understand and remember the key takeaways. It should be engaging enough for social media sharing and visually polished for professional use.
+  `);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -115,7 +146,8 @@ export default function PdfToInfographic() {
         body: {
           fileContent: contentToProcess,
           fileName: sourceName,
-          sourceType: sourceType
+          sourceType: sourceType,
+          promptTemplate: promptTemplate
         }
       });
       
@@ -228,7 +260,7 @@ export default function PdfToInfographic() {
           <ChevronLeft className="h-4 w-4" />
           <span>Back to Home</span>
         </Link>
-        <h1 className="text-3xl md:text-4xl font-bold mb-2">📊 Content to Infographic</h1>
+        <h1 className="text-3xl md:text-4xl font-bold mb-2">📊 Content to Infography</h1>
         <p className="text-muted-foreground">Transform your PDFs, blogs, and URLs into visually appealing infographics</p>
       </div>
       
@@ -281,19 +313,19 @@ export default function PdfToInfographic() {
             
             <div className="mt-6">
               <Button 
-                className="w-full" 
+                className="w-full bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 transition-all" 
                 disabled={loading || (sourceType === "file" && !file) || (sourceType === "url" && !url) || (sourceType === "text" && !blogText)}
                 onClick={generateInfographic}
               >
                 {loading ? (
                   <>
                     <RotateCw className="mr-2 h-4 w-4 animate-spin" />
-                    Generating Infographic...
+                    Generating Infography...
                   </>
                 ) : (
                   <>
                     <PieChart className="mr-2 h-4 w-4" />
-                    Generate Infographic
+                    Generate Infography
                   </>
                 )}
               </Button>
@@ -474,7 +506,7 @@ export default function PdfToInfographic() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg flex items-center">
                       <FileText className="h-5 w-5 mr-2 text-primary" />
-                      PDF to Infographic
+                      PDF to Infography
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -488,7 +520,7 @@ export default function PdfToInfographic() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg flex items-center">
                       <Globe className="h-5 w-5 mr-2 text-primary" />
-                      URL to Infographic
+                      URL to Infography
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
