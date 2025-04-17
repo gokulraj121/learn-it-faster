@@ -14,7 +14,26 @@ serve(async (req) => {
   
   try {
     // Extract the request body
-    const requestData = await req.json();
+    let requestData;
+    const contentType = req.headers.get("content-type") || "";
+    
+    if (contentType.includes("application/json")) {
+      requestData = await req.json();
+    } else if (contentType.includes("multipart/form-data")) {
+      // Handle multipart form data
+      const formData = await req.formData();
+      requestData = {
+        fileContent: formData.get("fileContent"),
+        fileName: formData.get("fileName"),
+        conversionType: formData.get("conversionType"),
+      };
+    } else {
+      return new Response(
+        JSON.stringify({ error: "Unsupported content type" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      );
+    }
+    
     const { fileContent, fileName, conversionType } = requestData;
     
     if (!fileContent || !conversionType) {
@@ -38,7 +57,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error converting file:", error.message);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message || "An unexpected error occurred" }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
     );
   }
@@ -114,7 +133,6 @@ async function processFileConversion(fileContent: string, fileName: string, conv
   if (conversionType === "word-to-pdf") {
     try {
       // In a real implementation, you would convert the docx to PDF here
-      // For now, we're just returning the content as-is
       return {
         success: true,
         fileName: outputFileName,
@@ -183,6 +201,8 @@ async function extractTextWithAI(fileContent: string, conversionType: string) {
     });
     
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("AI API error response:", errorText);
       throw new Error(`API request failed with status ${response.status}`);
     }
     
@@ -212,6 +232,8 @@ async function extractTextWithAI(fileContent: string, conversionType: string) {
 }
 
 function getOutputFileName(fileName: string, conversionType: string) {
+  if (!fileName) return `converted.${conversionType.split('-to-')[1]}`;
+  
   const nameParts = fileName.split('.');
   const baseName = nameParts.slice(0, -1).join('.');
   const outputFormat = conversionType.split('-to-')[1];

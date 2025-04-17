@@ -1,10 +1,10 @@
+
 import { useState } from "react";
 import { ChevronLeft, Download, FileIcon, RotateCw, ArrowDownUp } from "lucide-react";
 import { FileUpload } from "@/components/FileUpload";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
 import { 
   Select, 
@@ -35,12 +35,10 @@ const conversionOptions: ConversionOption[] = [
 export default function FileConverter() {
   const [conversionType, setConversionType] = useState<ConversionType>("pdf-to-word");
   const [file, setFile] = useState<File | null>(null);
-  const [fileContent, setFileContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [converted, setConverted] = useState(false);
   const [outputFileName, setOutputFileName] = useState<string | null>(null);
   const [convertedContent, setConvertedContent] = useState<string | null>(null);
-  const [contentType, setContentType] = useState<string | null>(null);
   const { toast } = useToast();
   
   const currentOption = conversionOptions.find(option => option.id === conversionType);
@@ -50,23 +48,10 @@ export default function FileConverter() {
     setConverted(false);
     setOutputFileName(null);
     setConvertedContent(null);
-    setContentType(null);
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result as string;
-      setFileContent(content);
-    };
-    
-    if (conversionType.includes("pdf") || conversionType.includes("image")) {
-      reader.readAsDataURL(uploadedFile);
-    } else {
-      reader.readAsText(uploadedFile);
-    }
   };
   
   const handleConvert = async () => {
-    if (!file || !fileContent) return;
+    if (!file) return;
     
     setLoading(true);
     
@@ -86,18 +71,24 @@ export default function FileConverter() {
         throw new Error(errorData.error || 'Conversion failed');
       }
       
-      if (conversionType.endsWith('text') || conversionType === 'pdf-to-word') {
-        const text = await response.text();
-        setConvertedContent(text);
-        setContentType('text/plain');
-      } else {
-        const blob = await response.blob();
-        setConvertedContent(URL.createObjectURL(blob));
-        setContentType(blob.type);
+      // Get output filename from response headers if available
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let generatedFileName = `converted.${conversionType.split('-to-')[1]}`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename=(.*?)(;|$)/i);
+        if (filenameMatch && filenameMatch[1]) {
+          generatedFileName = filenameMatch[1].replace(/["']/g, "");
+        }
       }
       
+      // Create and store blob URL for download
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      setConvertedContent(blobUrl);
       setConverted(true);
-      setOutputFileName(`${file.name.split('.')[0]}.${conversionType.split('-to-')[1]}`);
+      setOutputFileName(generatedFileName);
       
       toast({
         title: "File converted",
@@ -118,7 +109,6 @@ export default function FileConverter() {
   
   const downloadResult = () => {
     if (!converted || !outputFileName || !convertedContent) {
-      console.error("Cannot download: missing data", { converted, outputFileName, contentType, convertedContent: !!convertedContent });
       toast({
         title: "Download error",
         description: "Missing conversion data. Please try converting again.",
@@ -128,23 +118,13 @@ export default function FileConverter() {
     }
     
     try {
+      // Create anchor element and initiate download
       const a = document.createElement('a');
-      
-      if (convertedContent.startsWith('blob:') || convertedContent.startsWith('data:')) {
-        a.href = convertedContent;
-      } else {
-        const blob = new Blob([convertedContent], { type: contentType || 'text/plain' });
-        a.href = URL.createObjectURL(blob);
-      }
-      
+      a.href = convertedContent;
       a.download = outputFileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
-      if (!convertedContent.startsWith('blob:') && !convertedContent.startsWith('data:')) {
-        URL.revokeObjectURL(a.href);
-      }
       
       toast({
         title: "File downloaded",
@@ -184,10 +164,9 @@ export default function FileConverter() {
               setConverted(false);
               setOutputFileName(null);
               setConvertedContent(null);
-              setContentType(null);
             }}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full bg-white dark:bg-gray-900 shadow-sm">
               <SelectValue placeholder="Select conversion type" />
             </SelectTrigger>
             <SelectContent>
@@ -233,7 +212,7 @@ export default function FileConverter() {
               <Button
                 disabled={loading}
                 onClick={handleConvert}
-                className="w-full"
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
               >
                 {loading ? (
                   <>
@@ -248,7 +227,7 @@ export default function FileConverter() {
               <Button
                 variant="default"
                 onClick={downloadResult}
-                className="w-full"
+                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
               >
                 <Download className="mr-2 h-4 w-4" />
                 Download Converted File
