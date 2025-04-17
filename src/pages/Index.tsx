@@ -31,21 +31,21 @@ const Index = () => {
           <div className="flex flex-wrap gap-4 justify-center">
             {!user ? (
               <Link to="/auth">
-                <Button size="lg" className="gap-2">
+                <Button size="lg" className="gap-2 bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-500 text-white shadow-lg">
                   Get Started
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
             ) : (
               <Link to="/flashcard-generator">
-                <Button size="lg" className="gap-2">
+                <Button size="lg" className="gap-2 bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-500 text-white shadow-lg">
                   Go to Tools
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
             )}
             <Link to="/plans">
-              <Button variant="outline" size="lg">
+              <Button variant="outline" size="lg" className="border-2 hover:bg-black/5">
                 View Pricing
               </Button>
             </Link>
@@ -300,11 +300,15 @@ const Index = () => {
           <div className="mt-16">
             {!user ? (
               <Link to="/auth">
-                <Button size="lg">Start Using Toolkit Today</Button>
+                <Button size="lg" className="bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-500 text-white shadow-lg">
+                  Start Using Toolkit Today
+                </Button>
               </Link>
             ) : (
               <Link to="/flashcard-generator">
-                <Button size="lg">Go to Your Dashboard</Button>
+                <Button size="lg" className="bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/90 hover:to-indigo-500 text-white shadow-lg">
+                  Go to Your Dashboard
+                </Button>
               </Link>
             )}
           </div>

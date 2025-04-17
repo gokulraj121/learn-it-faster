@@ -146,8 +146,8 @@ async function processFileConversion(fileContent: string, fileName: string, conv
 
 async function extractTextWithAI(fileContent: string, conversionType: string) {
   try {
-    const API_TOKEN = Deno.env.get("HF_API_TOKEN") || "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";
-    const API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8b-chat-hf";
+    const API_KEY = Deno.env.get("GEMINI_API_KEY") || "AIzaSyDGtUA1BNzNjxFcASfi5nHY7Y-lXZ1pvNM";
+    const API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent";
     
     // Create a prompt based on the conversion type
     const prompt = `
@@ -162,23 +162,23 @@ async function extractTextWithAI(fileContent: string, conversionType: string) {
     Return ONLY the extracted text content, no commentary or explanations.
     `;
     
-    // Make API request to Llama 3
-    const response = await fetch(API_URL, {
+    // Make API request to Gemini
+    const response = await fetch(`${API_URL}?key=${API_KEY}`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${API_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 4000,
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          maxOutputTokens: 4000,
           temperature: 0.1,
-          top_p: 0.95,
-        },
-        options: {
-          wait_for_model: true,
-        },
+          topP: 0.95,
+        }
       }),
     });
     
@@ -188,12 +188,18 @@ async function extractTextWithAI(fileContent: string, conversionType: string) {
     
     const result = await response.json();
     
-    // Extract the response text
+    // Extract the response text from Gemini's format
     let extractedText = "";
-    if (result && result.generated_text) {
-      extractedText = result.generated_text.replace(/^I'll extract the text from this content:\s*|^Here's the extracted text:\s*/i, '');
-    } else if (Array.isArray(result) && result.length > 0 && result[0].generated_text) {
-      extractedText = result[0].generated_text.replace(/^I'll extract the text from this content:\s*|^Here's the extracted text:\s*/i, '');
+    if (result.candidates && 
+        result.candidates.length > 0 && 
+        result.candidates[0].content && 
+        result.candidates[0].content.parts && 
+        result.candidates[0].content.parts.length > 0) {
+      
+      extractedText = result.candidates[0].content.parts[0].text;
+      
+      // Clean up any prefixes like "Here's the extracted text:"
+      extractedText = extractedText.replace(/^I'll extract the text from this content:\s*|^Here's the extracted text:\s*/i, '');
     } else {
       throw new Error("Unexpected API response format");
     }

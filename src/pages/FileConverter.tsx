@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { ChevronLeft, Download, FileIcon, RotateCw, ArrowDownUp } from "lucide-react";
 import { FileUpload } from "@/components/FileUpload";
@@ -72,28 +71,37 @@ export default function FileConverter() {
     setLoading(true);
     
     try {
-      const { data, error } = await supabase.functions.invoke('convert-file', {
-        body: {
-          fileContent,
-          fileName: file.name,
-          conversionType
-        }
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sourceFormat', conversionType.split('-to-')[0]);
+      formData.append('targetFormat', conversionType.split('-to-')[1]);
+      
+      const response = await fetch('/api/converter/convert-file', {
+        method: 'POST',
+        body: formData,
       });
       
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Conversion failed');
+      }
       
-      if (!data.success) {
-        throw new Error(data.message || "Conversion failed");
+      if (conversionType.endsWith('text') || conversionType === 'pdf-to-word') {
+        const text = await response.text();
+        setConvertedContent(text);
+        setContentType('text/plain');
+      } else {
+        const blob = await response.blob();
+        setConvertedContent(URL.createObjectURL(blob));
+        setContentType(blob.type);
       }
       
       setConverted(true);
-      setOutputFileName(data.fileName);
-      setConvertedContent(data.content);
-      setContentType(data.contentType || "application/octet-stream");
+      setOutputFileName(`${file.name.split('.')[0]}.${conversionType.split('-to-')[1]}`);
       
       toast({
         title: "File converted",
-        description: data.message,
+        description: "Your file has been converted successfully",
       });
       
     } catch (error: any) {
@@ -119,58 +127,24 @@ export default function FileConverter() {
       return;
     }
     
-    console.log("Downloading file:", outputFileName, "Content type:", contentType);
-    
     try {
-      let mimeType = contentType || "application/octet-stream";
-      let blob: Blob;
-      
-      // Handle different content types
-      if (mimeType.includes("word") || mimeType.includes("document") || 
-          conversionType === "pdf-to-word" || conversionType === "pdf-to-text" || 
-          conversionType === "image-to-text") {
-        // For text-based content
-        blob = new Blob([convertedContent], { type: mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ? "text/plain" : mimeType });
-      } 
-      else if (convertedContent.startsWith("data:")) {
-        // For data URLs (images)
-        const base64Content = convertedContent.split(',')[1];
-        const binaryString = atob(base64Content);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        blob = new Blob([bytes], { type: mimeType });
-      } 
-      else if (/^[A-Za-z0-9+/=]+$/.test(convertedContent.substring(0, 100))) {
-        // For base64 encoded content
-        try {
-          const binaryString = atob(convertedContent);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          blob = new Blob([bytes], { type: mimeType });
-        } catch (e) {
-          // If base64 decoding fails, treat as plain text
-          console.warn("Base64 decoding failed, treating as text:", e);
-          blob = new Blob([convertedContent], { type: "text/plain" });
-        }
-      }
-      else {
-        // Default fallback
-        blob = new Blob([convertedContent], { type: mimeType });
-      }
-      
-      // Create and trigger download
-      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      
+      if (convertedContent.startsWith('blob:') || convertedContent.startsWith('data:')) {
+        a.href = convertedContent;
+      } else {
+        const blob = new Blob([convertedContent], { type: contentType || 'text/plain' });
+        a.href = URL.createObjectURL(blob);
+      }
+      
       a.download = outputFileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      
+      if (!convertedContent.startsWith('blob:') && !convertedContent.startsWith('data:')) {
+        URL.revokeObjectURL(a.href);
+      }
       
       toast({
         title: "File downloaded",
@@ -184,17 +158,6 @@ export default function FileConverter() {
         variant: "destructive",
       });
     }
-  };
-  
-  const createAndDownloadFile = (blob: Blob) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = outputFileName || "converted-file";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
   
   return (
